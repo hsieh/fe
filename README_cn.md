@@ -1,7 +1,7 @@
 简体中文 | [English](README.md)
 
 <p align="center">
-  <img src="4.jpg" alt="fe — 用 Forth 驱动、可现场编程的终端编辑器" width="500">
+  <img src="4.png" alt="fe — 用 Forth 驱动、可现场编程的终端编辑器" width="500">
 </p>
 
 # fe — 用 Forth 驱动、可现场编程的终端编辑器

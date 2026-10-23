@@ -1,7 +1,7 @@
 English | [简体中文](README_cn.md)
 
 <p align="center">
-  <img src="4.jpg" alt="fe — a Forth-powered, programmable terminal editor" width="500">
+  <img src="4.png" alt="fe — a Forth-powered, programmable terminal editor" width="500">
 </p>
 
 # fe — A Forth-powered, programmable terminal editor
