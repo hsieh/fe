@@ -27,7 +27,7 @@ variable rt-err 0 rt-err !
   sp@ rt-save-sp !
   rt-ta @ rt-tu @ ['] evaluate catch ?dup if
     s" ERROR: " type  error$ type
-    state @ 0= if  rt-save-sp @ sp!  then
+    rt-save-sp @ sp!  0 state !
   else
     s" ok" type
   then cr ;

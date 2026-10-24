@@ -154,7 +154,7 @@ variable loading? 0 loading? !   \ file is loading (not a user edit, does not se
 \ rebuild when dirty (one entry per line-start offset); a single edit without newlines uses an incremental shift, the rest are rebuilt in full
 : lix-build
   lix-dirty @ 0= if exit then
-  lix-epend @ 1 =  lix-ecomplex @ 0=  and  lix-enl @ 0=  and if
+  lix @ 0<>  lix-epend @ 1 =  and  lix-ecomplex @ 0=  and  lix-enl @ 0=  and if
     lix-epos @ lix-find-gt { i }
     i lix-edelta @ lix-shift-tail
     0 lix-dirty !  0 lix-epend !  exit
