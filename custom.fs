@@ -3283,6 +3283,7 @@ create theme-dark
   <A Blue >BG White >FG Bold A> , <A Green >FG A> , <A Magenta >BG Dim A> ,
   <A Blue >BG Green >FG Bold A> ,
   <A Cyan >FG Underline A> ,
+  Invers , Invers Dim or ,
 
 create theme-mono
   <A Magenta >FG A> , <A Yellow >FG A> , <A Magenta >FG Bold A> , <A Magenta >FG Bold A> ,
@@ -3291,6 +3292,7 @@ create theme-mono
   Invers , Bold , <A Blue >BG Dim A> ,
   Invers Bold or ,
   <A Cyan >FG Underline A> ,
+  Invers , Invers Dim or ,
 
 : theme-apply ( a -- )
   8 0 ?do  dup i cells + @  sidx-attrs i 1+ cells + !  loop
@@ -3303,6 +3305,8 @@ create theme-mono
   dup 14 cells + @ bracket-attr !
   dup 15 cells + @ match-sel-attr !
   dup 16 cells + @ sym-attr !
+  dup 17 cells + @ status-attr !
+  dup 18 cells + @ status-inactive-attr !
   drop ;
 
 variable theme-cur 0 theme-cur !   \ 0=dark 1=mono

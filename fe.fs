@@ -534,6 +534,8 @@ variable match-attr  <A Green >FG A> match-attr !               \ matched-charac
 variable match-sel-attr  <A Blue >BG Green >FG Bold A> match-sel-attr !  \ matched characters on the selected row (fzf hl+: bold green on blue)
 variable bracket-attr  <A Magenta >BG Dim A> bracket-attr !       \ bracket match: paired brackets (magenta background + dim)
 variable sym-attr  <A Cyan >FG Underline A> sym-attr !           \ symbol highlight in refs picker content (cyan underline, distinct from the green match)
+variable status-attr  Invers status-attr !                        \ active window statusline bar (bright reverse)
+variable status-inactive-attr  Invers Dim or status-inactive-attr !   \ inactive window statusline bar (reverse + dim; SGR2 ignored by rxvt/old VTE — override via theme)
 variable shutdown-xt  0 shutdown-xt !   \ ( -- ) pre-exit hook (lsp uses it to shut down the server); 0 = none
 variable overlay-xt    0 overlay-xt !     \ ( i -- ) draw overlay row i (i∈[0,overlay-rows)); 0 = no overlay
 variable overlay-rows  0 overlay-rows !   \ overlay row count (0 = not shown)
@@ -784,7 +786,7 @@ variable cur-shape  -1 cur-shape !
   win-status-on? @ if
     fblen @  nrows @ cells rowcur +  !
     win-x @  win-y @ win-rows @ + 1-  fb-at-xy
-    win-render-active @ if  Invers style>fb  else  Invers Dim or style>fb  then  \ active = reverse-video bright bar, inactive = reverse-video dim bar
+    win-render-active @ if  status-attr @ style>fb  else  status-inactive-attr @ style>fb  then  \ active = bright bar, inactive = dim bar (theme-configurable)
     win-status-xt @ execute
     \ showcmd right-aligned (dynamic width: win-cols changes on resize/split)
     showcmd-xt @ ?dup if execute else 0 0 then { sa sl }
