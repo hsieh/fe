@@ -818,6 +818,7 @@ variable fz-bn 0 fz-bn !
 
 512 constant fz-max-m
 64  constant fz-max-n
+256 constant fz-max-marks  \ max total matched marks per item (query buffer is 256 → ≤255)
 create fz-D  fz-max-n fz-max-m * cells allot
 create fz-Marr  fz-max-n fz-max-m * cells allot
 create fz-bonarr  fz-max-m cells allot
@@ -1014,6 +1015,7 @@ variable fz-sv 0 fz-sv !
     fz-score-term fz-cur !
     fz-cur @ fz-score-min = if false exit then
     fz-cur @ fz-total +!
+    fz-nmarks @ fz-bn @ + 255 > if  255 fz-nmarks @ - fz-bn !  then
     fz-bm fz-marks fz-nmarks @ + fz-bn @ move
     fz-bn @ fz-nmarks +!
   repeat
@@ -1028,7 +1030,7 @@ create lp-starts max-lp cells allot
 create lp-lens   max-lp cells allot
 create lp-scores max-lp cells allot
 create lp-mlens  max-lp cells allot
-create lp-marks  max-lp fz-max-n * allot
+create lp-marks  max-lp fz-max-marks * allot
 \ per-item optional metadata (filled by the refs picker; grep/C-o/L do not fill it = 0, using the original path):
 \   lp-cstarts[i] = content-segment start (0 = no content, fzy matches the whole item)
 \   lp-symmarks[i]/lp-symlens[i] = symbol-range byte offsets (relative to the item start, ascending) / byte count
@@ -1076,7 +1078,7 @@ create lp-prompt 4 allot
     lp-i @ lp-s @ - lp-l !
     lp-l @ 0> if
       \ fzy match scope: the refs picker only matches the path:line segment (lp-cstarts>0); otherwise the whole item (grep/C-o/L)
-      lp-cstarts lp-item @ cells + @ lp-cst !
+      lp-item @ max-lp < if  lp-cstarts lp-item @ cells + @  else  0  then  lp-cst !
       lp-cst @ 0> if
         flist @ lp-s @ +  lp-cst @  pbuf pbuflen @  fuzzy-match?
       else
@@ -1091,7 +1093,7 @@ create lp-prompt 4 allot
             lp-lens   lp-pos @ 1- cells + @  lp-lens   lp-pos @ cells + !
             lp-scores lp-pos @ 1- cells + @  lp-scores lp-pos @ cells + !
             lp-mlens  lp-pos @ 1- cells + @  lp-mlens  lp-pos @ cells + !
-            lp-marks  lp-pos @ 1- fz-max-n * +  lp-marks lp-pos @ fz-max-n * +  fz-max-n move
+            lp-marks  lp-pos @ 1- fz-max-marks * +  lp-marks lp-pos @ fz-max-marks * +  fz-max-marks move
             lp-cstarts  lp-pos @ 1- cells + @  lp-cstarts  lp-pos @ cells + !
             lp-symlens  lp-pos @ 1- cells + @  lp-symlens  lp-pos @ cells + !
             lp-symmarks lp-pos @ 1- fz-max-n * +  lp-symmarks lp-pos @ fz-max-n * +  fz-max-n move
@@ -1100,11 +1102,12 @@ create lp-prompt 4 allot
           lp-s @ lp-starts lp-pos @ cells + !
           lp-l @ lp-lens   lp-pos @ cells + !
           fz-total @ lp-scores lp-pos @ cells + !
-          fz-marks lp-marks lp-pos @ fz-max-n * +  fz-nmarks @ move
+          fz-marks lp-marks lp-pos @ fz-max-marks * +  fz-nmarks @ move
           fz-nmarks @ lp-mlens lp-pos @ cells + !
           lp-cst @ lp-cstarts lp-pos @ cells + !
-          lp-symlens lp-item @ cells + @  lp-symlens lp-pos @ cells + !
-          lp-symmarks lp-item @ fz-max-n * +  lp-symmarks lp-pos @ fz-max-n * +  fz-max-n move
+          lp-item @ max-lp < if  lp-symlens lp-item @ cells + @  else  0  then  lp-symlens lp-pos @ cells + !
+          lp-item @ max-lp < if  lp-symmarks lp-item @ fz-max-n * +  lp-symmarks lp-pos @ fz-max-n * +  fz-max-n move
+          else  lp-symmarks lp-pos @ fz-max-n * +  fz-max-n erase  then
           1 lp-nmatches +!
         then
       then
@@ -1187,7 +1190,7 @@ variable cs-found 0 cs-found !
         lp-s @ lp-starts lp-nmatches @ cells + !
         lp-l @ lp-lens   lp-nmatches @ cells + !
         flist @ lp-s @ + lp-l @  mark-substr
-        fz-marks lp-marks lp-nmatches @ fz-max-n * +  fz-nmarks @ move
+        fz-marks lp-marks lp-nmatches @ fz-max-marks * +  fz-nmarks @ move
         fz-nmarks @ lp-mlens lp-nmatches @ cells + !
         1 lp-nmatches +!
       then
@@ -1397,7 +1400,7 @@ variable lp-emit-c 0 lp-emit-c !
 \ when over-wide, truncate by display width: by default keep the head + tail …; lp-keep-right=1 keeps the right end + head …
 : lp-str
   0 lps-m !
-  lp-marks lpr-idx @ fz-max-n * + lp-mbase !
+  lp-marks lpr-idx @ fz-max-marks * + lp-mbase !
   lp-mlens lpr-idx @ cells + @ lp-mlen !
   0 lss-m !
   lp-symmarks lpr-idx @ fz-max-n * + lss-base !
