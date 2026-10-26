@@ -1037,11 +1037,24 @@ create lp-marks  max-lp fz-max-marks * allot
 create lp-cstarts  max-lp cells allot
 create lp-symlens  max-lp cells allot
 create lp-symmarks max-lp fz-max-n * allot
+\ source snapshot of the metadata above (lp-filter sorts the sorted arrays in-place; the source must survive re-filtering)
+create lp-cstarts-src  max-lp cells allot
+create lp-symlens-src  max-lp cells allot
+create lp-symmarks-src max-lp fz-max-n * allot
 \ clear the optional metadata (called before a new picker / re-collection; allot is not initialized, so stale garbage would be misread)
 : lp-meta-clear ( -- )
   lp-cstarts  max-lp cells erase
   lp-symlens  max-lp cells erase
-  lp-symmarks max-lp fz-max-n * erase ;
+  lp-symmarks max-lp fz-max-n * erase
+  lp-cstarts-src  max-lp cells erase
+  lp-symlens-src  max-lp cells erase
+  lp-symmarks-src max-lp fz-max-n * erase ;
+\ snapshot the source metadata after collect (lp-filter reads -src and sorts the non-src arrays in-place;
+\ without this, the next filter run would read the previous run's sorted garbage)
+: lp-meta-snapshot ( -- )
+  lp-cstarts   lp-cstarts-src   max-lp cells move
+  lp-symlens   lp-symlens-src   max-lp cells move
+  lp-symmarks  lp-symmarks-src  max-lp fz-max-n * move ;
 variable lp-item 0 lp-item !   \ flist item index (used by lp-filter iteration, aligned with the lp-cstarts index)
 variable lp-cst  0 lp-cst !    \ content-segment start of the current item
 variable lp-pos 0 lp-pos !
@@ -1078,7 +1091,7 @@ create lp-prompt 4 allot
     lp-i @ lp-s @ - lp-l !
     lp-l @ 0> if
       \ fzy match scope: the refs picker only matches the path:line segment (lp-cstarts>0); otherwise the whole item (grep/C-o/L)
-      lp-item @ max-lp < if  lp-cstarts lp-item @ cells + @  else  0  then  lp-cst !
+      lp-item @ max-lp < if  lp-cstarts-src lp-item @ cells + @  else  0  then  lp-cst !
       lp-cst @ 0> if
         flist @ lp-s @ +  lp-cst @  pbuf pbuflen @  fuzzy-match?
       else
@@ -1105,8 +1118,8 @@ create lp-prompt 4 allot
           fz-marks lp-marks lp-pos @ fz-max-marks * +  fz-nmarks @ move
           fz-nmarks @ lp-mlens lp-pos @ cells + !
           lp-cst @ lp-cstarts lp-pos @ cells + !
-          lp-item @ max-lp < if  lp-symlens lp-item @ cells + @  else  0  then  lp-symlens lp-pos @ cells + !
-          lp-item @ max-lp < if  lp-symmarks lp-item @ fz-max-n * +  lp-symmarks lp-pos @ fz-max-n * +  fz-max-n move
+          lp-item @ max-lp < if  lp-symlens-src lp-item @ cells + @  else  0  then  lp-symlens lp-pos @ cells + !
+          lp-item @ max-lp < if  lp-symmarks-src lp-item @ fz-max-n * +  lp-symmarks lp-pos @ fz-max-n * +  fz-max-n move
           else  lp-symmarks lp-pos @ fz-max-n * +  fz-max-n erase  then
           1 lp-nmatches +!
         then
@@ -1434,7 +1447,12 @@ variable lp-emit-c 0 lp-emit-c !
       lpr-sel? @ if panel-attr @ else 0 then style>fb
     else
       lp-char-sym? if
-        sym-attr @ style>fb
+        lpr-sel? @ if
+          panel-attr @ style>fb
+          sym-attr @ style>fb+
+        else
+          sym-attr @ style>fb
+        then
         lp-emit
         lpr-sel? @ if panel-attr @ else 0 then style>fb
       else
@@ -1670,6 +1688,7 @@ variable lp-create-xt  0 lp-create-xt !
   lp-nmatches @ lp-sel @ > if
     flist @ lp-starts lp-sel @ cells + @ +  lp-lens lp-sel @ cells + @  lp-close-xt @ execute
     lp-collect-xt @ execute
+    lp-meta-snapshot
     lp-refresh
   then ;
 
@@ -1679,6 +1698,7 @@ variable lp-create-xt  0 lp-create-xt !
   0 lp-recollect-xt !  0 lp-dump-xt !  0 lp-exit-xt !  0 lp-create-xt !   \ ordinary pickers: no external re-collection/dump/exit/create (live grep sets its own)
   lp-meta-clear                                            \ clear the optional metadata (collect refills it; allot is not initialized)
   lp-collect-xt @ execute
+  lp-meta-snapshot                                         \ snapshot the source metadata before lp-filter sorts in-place
   0 pbuflen !  0 pbpos !  0 lp-sel !  0 lp-top !   \ enter even with an empty list: allows typing a new path (Ctrl-o in an empty directory creates a new file)
   lp-refresh
   s" > " lp-prompt swap move  2 prompt-prefix-len !  lp-prompt prompt-prefix !

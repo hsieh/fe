@@ -668,6 +668,23 @@ Invers                      Constant S-SEARCH   \ search match (reverse video)
   dup BG> ?dup if  59 fb-c $F xor 40 + fb-ud.  then
   dup FG> ?dup if  59 fb-c $F xor 30 + fb-ud.  then
   drop  109 fb-c ;                                 \ m
+\ same as style>fb but WITHOUT the \e[0 reset: appends/overrides onto the current SGR state
+\ (stacks a foreground/underline style on top of an existing background; no locals — same hot-path constraint)
+\ the first parameter must not be ';'-prefixed (style>fb uses the leading 0 for that)
+variable sfb-sep
+: sfb-param ( n -- )   sfb-sep @ if 59 fb-c then  1 sfb-sep !  fb-ud. ;
+: style>fb+ ( attr -- )
+  27 fb-c 91 fb-c               \ \e[
+  0 sfb-sep !
+  dup Bold and if      1 sfb-param  then
+  dup Dim and if       2 sfb-param  then
+  dup Italic and if    3 sfb-param  then
+  dup Underline and if 4 sfb-param  then
+  dup Blink and if     5 sfb-param  then
+  dup Invers and if    7 sfb-param  then
+  dup BG> ?dup if  $F xor 40 + sfb-param  then
+  dup FG> ?dup if  $F xor 30 + sfb-param  then
+  drop  109 fb-c ;                                 \ m
 
 \ output this segment from in-line byte bi / absolute column dcol0, return (new bi, new absolute column); tabs expand to spaces
 variable rs-c 0 rs-c !
