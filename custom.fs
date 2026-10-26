@@ -1653,6 +1653,14 @@ variable lp-kill-len 0 lp-kill-len !
   0 prompting !  0 panel-xt !  0 panel-rows !  1 panel-dirty !  mode-pop ;
 : lp-cancel  lp-exit-xt @ ?dup if execute then  0 prompting !  0 panel-xt !  0 panel-rows !  1 panel-dirty !  mode-pop ;
 : lp-dump    lp-dump-xt @ ?dup if execute then ;
+\ open-or-create the exact typed path (ignores the fuzzy selection); only the file picker sets lp-create-xt
+variable lp-create-xt  0 lp-create-xt !
+: lp-create ( -- )
+  lp-create-xt @ 0= if exit then
+  pbuflen @ 0= if exit then
+  pbuf pbuflen @ lp-create-xt @ execute
+  lp-exit-xt @ ?dup if execute then
+  0 prompting !  0 panel-xt !  0 panel-rows !  1 panel-dirty !  mode-pop ;
 : lp-input { c -- }
   c 32 >= if c pb-ins-cp  lp-refresh  then ;
 
@@ -1668,7 +1676,7 @@ variable lp-kill-len 0 lp-kill-len !
 \ open a picker: collect = fill flist, accept = selection action, close = close action (0 = none)
 : listpanel-open ( collect-xt accept-xt close-xt -- )
   lp-close-xt !  lp-accept-xt !  lp-collect-xt !
-  0 lp-recollect-xt !  0 lp-dump-xt !  0 lp-exit-xt !   \ ordinary pickers: no external re-collection/dump/exit cleanup (live grep sets its own)
+  0 lp-recollect-xt !  0 lp-dump-xt !  0 lp-exit-xt !  0 lp-create-xt !   \ ordinary pickers: no external re-collection/dump/exit/create (live grep sets its own)
   lp-meta-clear                                            \ clear the optional metadata (collect refills it; allot is not initialized)
   lp-collect-xt @ execute
   0 pbuflen !  0 pbpos !  0 lp-sel !  0 lp-top !   \ enter even with an empty list: allows typing a new path (Ctrl-o in an empty directory creates a new file)
@@ -1691,7 +1699,7 @@ variable cb-b 0 cb-b !
     cb-b @ B:NEXT + @ cb-b !
   repeat ;
 
-: filefind-open  s" FILES" lp-set-title  ['] collect-files  ['] do-buffer-open  0  listpanel-open ;
+: filefind-open  s" FILES" lp-set-title  ['] collect-files  ['] do-buffer-open  0  listpanel-open  ['] do-buffer-open lp-create-xt ! ;
 : path-tab-complete
   pbuflen @ pfx-len !
   pfx-len @ 0= if s" type a filename prefix" msg! exit then
@@ -3677,6 +3685,7 @@ variable fmt-clen 0 fmt-clen !
   key-ctrl-l ['] lp-clear      mode-listpanel bind-mode
   K-DELETE ['] lp-close mode-listpanel bind-mode
   key-ctrl-g ['] lp-dump  mode-listpanel bind-mode   \ live grep: dump to *grep*
+  key-ctrl-j ['] lp-create mode-listpanel bind-mode   \ open-or-create the exact typed path (file picker only)
   \ --- query-replace mode (qemacs style, single-key confirmation) ---
   keymap-qrep mode-qrep m-keymap !
   0 mode-qrep m-parent !

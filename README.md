@@ -194,7 +194,7 @@ Press `\` to open the async grep picker: each keystroke re-runs `rg` (falls back
 
 ### File / buffer pickers
 
-- `Ctrl-o`: file picker (recursively lists files, filters as you type, `Enter` opens)
+- `Ctrl-o`: file picker (recursively lists files, filters as you type, `Enter` opens the selected match, `Ctrl-j` opens-or-creates the exact typed path)
 - `L`: buffer picker (filters as you type, `Enter` switches, `Delete` closes)
 
 Both pickers use fuzzy matching: space-separated terms, AND, sorted by score, with matched characters highlighted in green.
