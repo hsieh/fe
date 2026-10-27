@@ -18,8 +18,17 @@ DIR=$(CDPATH= cd -- "$(dirname -- "$self")" && pwd)
 # no cd: keep caller's CWD. add script dir to include search path via fpath+.
 GF=gforth
 command -v gforth-fast >/dev/null 2>&1 && GF=gforth-fast
-exec "$GF" -e "2variable fe-incdir  s\" $DIR\" fe-incdir 2!" \
-             -e "fpath+ \"$DIR\"" "$self" "$@"
+# gforth 1.0's libcc prints speculative dlopen probes to stderr at startup; capture stderr
+# and replay it only if the editor exits abnormally (normal quit discards the noise).
+FEERR=$(mktemp /tmp/fe-err.XXXXXX) 2>/dev/null || FEERR=/dev/null
+trap '[ "$FEERR" != /dev/null ] && rm -f "$FEERR"' EXIT
+"$GF" -e "2variable fe-incdir  s\" $DIR\" fe-incdir 2!" \
+      -e "fpath+ \"$DIR\"" "$self" "$@" 2>"$FEERR"
+rc=$?
+if [ $rc -ne 0 ] && [ "$FEERR" != /dev/null ]; then
+    cat "$FEERR" >&2
+fi
+exit $rc
 [then]
 \ ===== fe.fs - minimal editor (Forth Editor)=====
 \ phases 1-3: file I/O + cursor + command set + REPL loop
