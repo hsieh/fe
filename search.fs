@@ -33,7 +33,7 @@ variable word-boundary 0 word-boundary !   \ 1=naive matching requires word boun
   snap @ snap-len @ pos re-match-at
   dup -2 = if drop 0 then ;
 
-: pat-clear 0 patlen !  regex-recompile ;
+: pat-clear 0 patlen !  0 word-boundary !  regex-recompile ;
 : pat-add { c }  patlen @ /pat < if  c pat patlen @ + c!  1 patlen +!  then  regex-recompile ;
 \ does pattern match at pos -> match end offset, or 0 if none
 : match-at? { pos }
