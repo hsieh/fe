@@ -2051,13 +2051,43 @@ variable ft-cw 0 ft-cw !
     ft-cw @ ft-w +!   ft-cn @ ft-i +!
   repeat
   s" …" fb-str  1 ft-w !
-  begin ft-i @ ft-u @ <  ft-w @ ft-max @ <  and while
+  begin ft-i @ ft-u @ < while
     ft-a @ ft-i @ +  ft-w @  mb-wl ft-cw !  ft-cn !
+    ft-w @ ft-cw @ + ft-max @ > if  ft-w @ exit  then
     ft-a @ ft-i @ +  ft-cn @  fb-str
     ft-cw @ ft-w +!   ft-cn @ ft-i +!
   repeat
   ft-w @ ;
 
+
+
+\ write the transient message into fb: newline→space, truncated to maxw display columns (never wraps)
+variable fm-a 0 fm-a !
+variable fm-u 0 fm-u !
+variable fm-i 0 fm-i !
+variable fm-w 0 fm-w !
+variable fm-max 0 fm-max !
+variable fm-cw 0 fm-cw !
+variable fm-cn 0 fm-cn !
+: fb-msg ( a u maxw -- )
+  fm-max !  fm-u !  fm-a !
+  0 fm-w !  0 fm-i !
+  begin
+    fm-i @ fm-u @ <  fm-w @ fm-max @ <  and
+  while
+    fm-a @ fm-i @ +  fm-w @  mb-wl fm-cw !  fm-cn !
+    fm-w @ fm-cw @ + fm-max @ > if exit then
+    fm-a @ fm-i @ + c@ 10 = if
+      32 fb-c
+    else
+      fm-a @ fm-i @ + c@ 9 = if
+        fm-cw @ 0 ?do 32 fb-c loop
+      else
+        fm-a @ fm-i @ + fm-cn @ fb-str
+      then
+    then
+    fm-cw @ fm-w +!   fm-cn @ fm-i +!
+  repeat ;
 
 : fb-status
   32 fb-c
@@ -2077,7 +2107,7 @@ variable ft-cw 0 ft-cw !
     s" unsaved changes!  q=discard & quit   C-s=save & quit   any key=cancel" fb-str
   else
     msglen @ 0> if
-      msgbuf msglen @  scr-cols @ 1-  fb-str-tail drop
+      msgbuf msglen @  scr-cols @ 1-  fb-msg
     else
       cursor @ offset->linecol { cl col }
       cl 1+ ndigits { ld }   col 1+ ndigits { cd }
@@ -2144,7 +2174,7 @@ variable ft-cw 0 ft-cw !
     s" unsaved changes!  q=discard & quit   C-s=save & quit   any key=cancel" fb-str
   else
     msglen @ 0> if
-      msgbuf msglen @  scr-cols @ 1-  fb-str-tail drop
+      msgbuf msglen @  scr-cols @ 1-  fb-msg
     then
   then
   then
