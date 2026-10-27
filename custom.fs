@@ -511,13 +511,31 @@ variable qmsglen 0 qmsglen !
 : qmsg-append { a u }
   a qmsg qmsglen @ + u move
   u qmsglen +! ;
+\ append a decimal to qmsg (arithmetic only: <# #s #> would clobber the shared hold area)
+\ iterative, no locals, no recurse (deep-chain safe: locals/recurse corrupt the return stack)
+create qmsg-udbuf 24 allot
+variable qmsg-udi 0 qmsg-udi !
+variable qmsg-udn 0 qmsg-udn !
+: qmsg-ud ( n -- )
+  qmsg-udn !
+  0 qmsg-udi !
+  begin
+    qmsg-udn @ 10 mod 48 +  qmsg-udbuf qmsg-udi @ + c!
+    1 qmsg-udi +!
+    qmsg-udn @ 10 / qmsg-udn !
+    qmsg-udn @ 0= until
+  begin qmsg-udi @ 0> while
+    -1 qmsg-udi +!
+    qmsg-udbuf qmsg-udi @ + c@  qmsg qmsglen @ + c!
+    1 qmsglen +!
+  repeat ;
 : qrep-finish
   mode-pop
   0 qreplacing !
   nreps @ 0= if s" no replacements" msg! exit then
   0 qmsglen !
   s" replaced " qmsg-append
-  nreps @ 0 <# #s #> qmsg-append
+  nreps @ qmsg-ud
   qmsg qmsglen @ msg! ;
 
 \ key handling
@@ -1260,7 +1278,22 @@ variable fbn-l 0 fbn-l !
   fbn-l !  fbn-a !
   fbn-a @  fb @ fblen @ +  fbn-l @  move
   fbn-l @ fblen +! ;
-: fb-ud-nl ( n -- )  0 <# #s #> fb-str-nl ;
+\ no-locals decimal into fb (arithmetic only: <# #s #> would clobber the shared hold area, which may hold a REPL string)
+variable fbu-n  0 fbu-n !
+variable fbu-i  0 fbu-i !
+create fbu-buf 12 allot
+: fb-ud-nl ( n -- )
+  fbu-n !
+  0 fbu-i !
+  begin
+    fbu-n @ 10 mod 48 +  fbu-buf fbu-i @ + c!
+    1 fbu-i +!
+    fbu-n @ 10 / fbu-n !
+    fbu-n @ 0= until
+  begin fbu-i @ 0> while
+    -1 fbu-i +!
+    fbu-buf fbu-i @ + c@ fb-c
+  repeat ;
 variable lp-w 0 lp-w !
 variable lp-keep-right 0 lp-keep-right !   \ 1 = keep the right end when over-wide (fzf --keep-right)
 variable lp-maxw 0 lp-maxw !

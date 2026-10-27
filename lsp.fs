@@ -80,8 +80,31 @@ create idbuf 16 allot
 variable idbuf-len 0 idbuf-len !
 variable idn-a 0 idn-a !
 variable idn-u 0 idn-u !
+\ format unsigned decimal n into numbuf; return ( addr len ) — arithmetic only, no <# #s #>
+\ (<# #s #> would clobber the shared hold area, which may hold a user string left on the REPL stack)
+\ iterative + no locals + no recurse: locals/recurse in the deep LSP chain corrupt the return stack
+create numbuf 24 allot
+variable numlen 0 numlen !
+variable numn 0 numn !
+variable numi 0 numi !
+create numtmp 24 allot
+: num>str ( n -- addr len )
+  numn !
+  0 numi !
+  begin
+    numn @ 10 mod 48 +  numtmp numi @ + c!
+    1 numi +!
+    numn @ 10 / numn !
+    numn @ 0= until
+  0 numlen !
+  begin numi @ 0> while
+    -1 numi +!
+    numtmp numi @ + c@  numbuf numlen @ + c!
+    1 numlen +!
+  repeat
+  numbuf numlen @ ;
 : idbuf-set ( n -- )
-  0 <# #s #> idn-u ! idn-a !      \ digit string
+  n num>str idn-u ! idn-a !      \ digit string
   s\" \"id\":" idbuf swap move        \ "id":" prefix (5 bytes)
   idn-a @ idbuf 5 + idn-u @ move  \ append the digits
   idn-u @ 5 + idbuf-len ! ;
@@ -107,7 +130,7 @@ variable jlen 0 jlen !
 
 : jadd { a u -- }  jlen @ u + jensure  a jbuf @ jlen @ + u move  u jlen +! ;
 : jaddc { c -- }  1 jensure  c jbuf @ jlen @ + c!  1 jlen +! ;
-: jnum ( n -- )  0 <# #s #> jadd ;
+: jnum ( n -- )  num>str jadd ;
 
 \ append a JSON string with escaping (no surrounding quotes)
 \ append a JSON string with escaping (no surrounding quotes); all globals (locals inside the loop corrupt the return stack)
@@ -136,7 +159,7 @@ variable js-c 0 js-c !
 \ send a frame: Content-Length: N\r\n\r\n<body>
 : frame-send { a u -- }
   s" Content-Length: " fd-write drop
-  u 0 <# #s #> fd-write drop
+  u num>str fd-write drop
   s\" \r\n\r\n" fd-write drop
   a u fd-write drop ;
 
@@ -1120,7 +1143,7 @@ variable cr-cu 0 cr-cu !
     ref-file rf-i @ 256 * +  ref-flen rf-i @ cells + @  rf-len !
     ref-file rf-i @ 256 * +  rf-len @  cwd-shorten  dup rf-len !  rf-disp swap move
     58 rf-disp rf-len @ + c!  1 rf-len +!
-    ref-line rf-i @ cells + @ 1+ 0 <# #s #>  rf-ulen ! rf-ua !
+    ref-line rf-i @ cells + @ 1+ num>str  rf-ulen ! rf-ua !
     rf-ua @  rf-disp rf-len @ +  rf-ulen @  move
     rf-len @ rf-ulen @ + rf-len !
     rf-len @ lp-cstarts rf-i @ cells + !

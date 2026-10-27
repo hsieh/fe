@@ -28,12 +28,30 @@ exec "$GF" -e "2variable fe-incdir  s\" $DIR\" fe-incdir 2!" \
 \ temp-file helper: /tmp/fe-<base>.<pid> (safe across instances; each process has its own file)
 create tmp-buf 256 allot
 variable tmp-len 0 tmp-len !
+\ append an unsigned decimal to tmp-buf; arithmetic only — <# #s #> would clobber the shared hold area,
+\ which may hold a user string left on the REPL stack across evaluations
+\ iterative, no locals, no recurse (deep-chain safe: locals/recurse corrupt the return stack)
+create tpu-buf 24 allot
+variable tpu-i 0 tpu-i !
+variable tpu-n 0 tpu-n !
+: tmp-ud ( n -- )
+  tpu-n !
+  0 tpu-i !
+  begin
+    tpu-n @ 10 mod 48 +  tpu-buf tpu-i @ + c!
+    1 tpu-i +!
+    tpu-n @ 10 / tpu-n !
+    tpu-n @ 0= until
+  begin tpu-i @ 0> while
+    -1 tpu-i +!
+    tpu-buf tpu-i @ + c@  tmp-buf tmp-len @ + c!
+    1 tmp-len +!
+  repeat ;
 : tmp-file { a u -- ta tu }
   s" /tmp/fe-" tmp-buf swap move  8 tmp-len !
   a tmp-buf tmp-len @ + u move  u tmp-len +!
   46 tmp-buf tmp-len @ + c!  1 tmp-len +!      \ '.'
-  getpid 0 <# #s #> { pa pu }
-  pa tmp-buf tmp-len @ + pu move  pu tmp-len +!
+  getpid tmp-ud
   tmp-buf tmp-len @ ;
 
 \ startup warning redirect: warnings such as redefined produced while including modules go into a temp file first,
@@ -476,6 +494,35 @@ variable quit-flag  0 quit-flag !
   s" exception: " trace
   n error$ trace
   nl-buf 1 trace ;
+
+\ ===== runtime warning routing (flag-gated, no polling, no fd leak)=====
+\ Gforth warnings go through ?warning -> >stderr -> debug-fid. At runtime debug-fid points at a temp file;
+\ the ?warning override sets warn-pending, and idle-poll drains the file into *messages* ONLY when that flag
+\ is set. (The first attempt drained every 30ms and leaked fds; this one only touches the file on a real warning.)
+variable warn-pending 0 warn-pending !
+variable rt-warn-fid 0 rt-warn-fid !
+: rt-warn-drain ( -- )
+  warn-pending @ 0= if exit then
+  0 warn-pending !
+  rt-warn-fid @ 0= if exit then
+  rt-warn-fid @ flush-file drop
+  rt-warn-fid @ close-file throw                   \ close the write fd (fixes the fd leak)
+  0 rt-warn-fid !
+  s" rt-warn" tmp-file r/o open-file throw { rf }
+  rf slurp-fid { a u }
+  rf close-file throw
+  u 0> if
+    a u s" no current location" search nip nip if
+      2drop                                       \ drop the spurious locate warning
+    else
+      a u msg-log
+    then
+    a free throw
+  then
+  s" rt-warn" tmp-file delete-file throw
+  s" rt-warn" tmp-file w/o create-file throw  rt-warn-fid !
+  rt-warn-fid @ TO debug-fid ;
+
 
 
 \ ===== Mode structure (modeled on vis's Mode)=====
@@ -1231,6 +1278,7 @@ variable wk-cols  0 wk-cols !
     then
     wt-wait if 0 exit then                        \ a watcher fired → let the main loop redraw
     idle-poll                                      \ idle poll (lsp debounces didChange)
+    rt-warn-drain                                  \ drain runtime Gforth warnings (flag-gated)
     wk-resized? if 0 exit then                    \ terminal resize → redraw
   again ;
 
@@ -1465,19 +1513,31 @@ include custom.fs
   type
   7 emit ;                          \ BEL
 
+\ ===== runtime warning routing (flag-gated: set warn-pending, fall through to debug-fid)=====
+\ Trivial on purpose: this runs in Gforth's warning path (potentially a deep chain), so no locals / no $tmp.
+:noname ( f xt -- )
+  swap warnings @ and if
+    1 warn-pending !
+    >stderr cr ." warning: " execute exit
+  then
+  drop ;
+is ?warning
+
+
 \ ===== entry point =====
 : fe
   s" *scratch*" BF_NOFILE buffer-new buffer-switch
   s" *messages*" BF_NOFILE BF_READONLY or buffer-new  messages-buf !
   s" *trace*"    BF_NOFILE BF_READONLY or buffer-new  trace-buf !
-  \ restore debug-fid, read the startup warnings back into *messages*
-  fe-warn-saved @ TO debug-fid
+  \ read the startup warnings back into *messages*, then keep debug-fid redirected to a runtime warn file
   fe-warn-fid @ close-file throw
   s" start-warn" tmp-file r/o open-file throw { rf }
   rf slurp-fid { a u }
   rf close-file throw
   u 0> if  a u msg-log  a free throw  then
   s" start-warn" tmp-file delete-file throw
+  s" rt-warn" tmp-file w/o create-file throw rt-warn-fid !
+  rt-warn-fid @ TO debug-fid
   next-arg dup if                        \ open all files from the command-line arguments
     buffer-open
     gctx @                               \ remember the first (staged on the stack)
