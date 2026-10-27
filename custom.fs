@@ -392,6 +392,52 @@ variable prompt-tab-xt  0 prompt-tab-xt !
   s" saved " msg!  fname @ flen @ msg+
   msgbuf msglen @ msg-log ;
 
+\ ===== reload the current file from disk (discard in-memory edits) =====
+variable reload-armed  0 reload-armed !   \ the modified buffer awaiting reload confirmation
+: reload-file
+  bflags @ BF_NOFILE and if s" not reloaded (no file)" msg-say exit then
+  fname @ 0= if s" no file" msg-say exit then
+  \ destructive: a modified buffer needs a second press (same press-twice pattern as buffer-close)
+  reload-armed @ { armed }  0 reload-armed !
+  modified @ if
+    armed gctx @ <> if
+      gctx @ reload-armed !
+      s" modified!  press again to discard & reload" msg-say exit
+    then
+  then
+  \ read the file (same as load-file; the replace sequence below handles a non-empty buffer)
+  fname @ flen @ r/o open-file if drop s" reload failed (open)" msg-say exit then
+  { fh }
+  fh file-size throw d>s { fsize }
+  fsize allocate throw { buf }
+  buf fsize fh read-file throw drop
+  fh close-file throw
+  \ EOL: reset then re-detect (CRLF is remembered so save writes it back)
+  0 eol-crlf !
+  buf fsize eol-normalize { blen }
+  \ record the cursor/viewport (kept after reload, clamped)
+  cursor @ offset->linecol { old-line old-col }
+  top-line @ { old-top }
+  \ replace the whole content (same sequence as cmd-format, but keeping the detected eol-crlf)
+  0 g-front !  0 g-back !  1 lix-dirty !
+  0 lix-epend !  0 lix-ecomplex !
+  0 g-move-gap
+  1 loading? !
+  buf blen g-insert
+  0 loading? !
+  1 lix-ecomplex !     \ force a full rebuild of the line index
+  buf free throw
+  \ reset state: in sync with disk
+  u-reset
+  0 saved-urp !  0 modified !
+  \ restore the viewport + cursor (line/column clamped; same as cmd-format)
+  old-top 0 max  g-nlines 1- min  top-line !
+  0 top-sub !
+  old-line 0 max  g-nlines 1- min  old-col  linecol->offset cursor !
+  file-loaded-xt      \ lsp: didChange (bound) or didOpen (unbound)
+  s" reloaded " msg!  fname @ flen @ msg+
+  msgbuf msglen @ msg-log ;
+
 \ ===== search =====
 : pat-add-cp { cp }  cp ['] pat-add utf8-emit ;
 : pat-back                        \ delete the last character (multibyte as a whole)
@@ -2031,7 +2077,7 @@ variable ft-cw 0 ft-cw !
     s" unsaved changes!  q=discard & quit   C-s=save & quit   any key=cancel" fb-str
   else
     msglen @ 0> if
-      msgbuf msglen @ fb-str
+      msgbuf msglen @  scr-cols @ 1-  fb-str-tail drop
     else
       cursor @ offset->linecol { cl col }
       cl 1+ ndigits { ld }   col 1+ ndigits { cd }
@@ -2098,7 +2144,7 @@ variable ft-cw 0 ft-cw !
     s" unsaved changes!  q=discard & quit   C-s=save & quit   any key=cancel" fb-str
   else
     msglen @ 0> if
-      msgbuf msglen @ fb-str
+      msgbuf msglen @  scr-cols @ 1-  fb-str-tail drop
     then
   then
   then
@@ -3582,6 +3628,7 @@ variable fmt-clen 0 fmt-clen !
   [char] K ['] cmd-hover          bind-command  \ K hover documentation
   [char] W ['] buffer-save-as     bind-command  \ W save as
   [char] L ['] buffind-open       bind-command  \ L buffer filter picker
+  [char] M ['] reload-file        bind-command  \ M reload the current file from disk
   [char] u ['] undo            bind-command     \ u undo
   key-ctrl-r ['] redo          bind-command     \ Ctrl-r redo
   [char] / ['] cmd-search-fwd  bind-command     \ / forward search
