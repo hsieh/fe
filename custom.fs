@@ -82,7 +82,6 @@ create keymap-repl   /keymap cells allot
 create mode-qrep     /mode cells allot
 create keymap-qrep   /keymap cells allot
 : mst-op      s" OPERATOR PENDING" ;
-: mst-cmd  s" NORMAL" ;
 : mst-ins  s" INSERT" ;
 : mst-search  s" SEARCH" ;
 : mst-prompt  s" PROMPT" ;
@@ -2204,16 +2203,57 @@ variable fm-cn 0 fm-cn !
 \ register (yank buffer); the visual selection is derived from vis-anchor and cursor
 create yank-buf 65536 allot
 variable yank-len   0 yank-len !
+variable yank-linewise 0 yank-linewise !   \ 1 = the register holds whole lines (yy/dd/V); paste treats it linewise
 variable visual     0 visual !
 variable vis-anchor 0 vis-anchor !
+variable vis-linewise 0 vis-linewise !   \ 0=charwise (v) 1=linewise (V)
 
-: vis-lo ( -- n )  cursor @ vis-anchor @ min ;
-: vis-hi ( -- n )  cursor @ vis-anchor @ max ;
+\ visual selection bounds: charwise = byte range [min,max); linewise = whole lines
+\ [line-start(min-line), line-start(max-line+1)); cached per (cursor,anchor,linewise)
+\ so the hot hl-attr render path does not redo offset-line per character.
+variable vis-lo-v  0 vis-lo-v !
+variable vis-hi-v  0 vis-hi-v !
+variable vis-ck-cur    -1 vis-ck-cur !
+variable vis-ck-anchor -1 vis-ck-anchor !
+variable vis-ck-lw     -1 vis-ck-lw !
+: vis-bounds ( -- lo hi )
+  vis-ck-cur @ cursor @ =  vis-ck-anchor @ vis-anchor @ =  and
+  vis-ck-lw @ vis-linewise @ =  and  0= if
+    cursor @ vis-ck-cur !  vis-anchor @ vis-ck-anchor !  vis-linewise @ vis-ck-lw !
+    vis-linewise @ if
+      cursor @ offset-line  vis-anchor @ offset-line  min
+      cursor @ offset-line  vis-anchor @ offset-line  max
+      over line-start vis-lo-v !
+      1+ line-start vis-hi-v !
+    else
+      cursor @ vis-anchor @ min  vis-lo-v !
+      cursor @ vis-anchor @ max  vis-hi-v !
+    then
+  then
+  vis-lo-v @ vis-hi-v @ ;
+: vis-lo ( -- n )  vis-bounds drop ;
+: vis-hi ( -- n )  vis-bounds nip ;
+
+\ status label for command mode: show VISUAL / VISUAL LINE while a selection is active
+: mst-cmd  visual @ if  vis-linewise @ if s" VISUAL LINE" else s" VISUAL" then  else s" NORMAL" then ;
 
 \ copy the bytes of [lo,hi) into the register
 : yank-range { lo hi -- }
   hi lo -  0 max  65536 min  yank-len !
   yank-len @ 0 ?do  lo i + g-char-at  yank-buf i +  c!  loop ;
+
+\ a linewise register must end with a newline (the last line may lack a trailing \n);
+\ append one so linewise paste always yields whole lines (vim parity).
+: yank-normalize-line
+  yank-linewise @ 0= if exit then
+  yank-len @ 0> if
+    yank-buf yank-len @ 1- + c@ 10 <> if
+      yank-len @ 65536 < if
+        10 yank-buf yank-len @ + c!
+        1 yank-len +!
+      then
+    then
+  then ;
 
 \ insert the register contents at the cursor
 : yank-insert
@@ -2928,47 +2968,79 @@ $10000000 constant cm-shift
   cpres-open-xt @ ?dup if execute then ;
 
 \ --- commands ---
-: cmd-visual                 \ v: enter/exit visual selection
-  visual @ if  0 visual !  else  cursor @ vis-anchor !  1 visual !  then ;
+: cmd-visual                 \ v: toggle charwise visual; in linewise visual switch to charwise (keep anchor)
+  visual @ if
+    vis-linewise @ if  0 vis-linewise !  else  0 visual !  then
+  else
+    cursor @ vis-anchor !  1 visual !  0 vis-linewise !
+  then ;
+
+\ V: toggle linewise visual; in charwise visual switch to linewise (keep anchor)
+: cmd-visual-line
+  visual @ if
+    vis-linewise @ if  0 visual !  else  1 vis-linewise !  then
+  else
+    cursor @ vis-anchor !  1 visual !  1 vis-linewise !
+  then ;
 
 : cmd-yank                   \ y: visual = yank the selection; otherwise yank the whole line
   visual @ if
-    vis-lo vis-hi yank-range  0 visual !
+    vis-linewise @ yank-linewise !
+    vis-lo vis-hi yank-range  yank-normalize-line  0 visual !  0 vis-linewise !
   else
     cursor @ offset->linecol drop { line }
     line line-start { lo }
     line 1+ 0 linecol->offset { hi }      \ including the line-end \n
-    lo hi yank-range
+    1 yank-linewise !
+    lo hi yank-range  yank-normalize-line
   then ;
 
 : cmd-visual-delete          \ d: visual = delete the selection; otherwise delete the whole line
   visual @ if
+    vis-linewise @ yank-linewise !
     bflags @ BF_READONLY and 0= if
-      vis-lo vis-hi yank-range             \ also copy into the register
+      vis-lo vis-hi yank-range  yank-normalize-line             \ also copy into the register
       vis-lo vis-hi delete-range
     then
-    0 visual !
+    0 visual !  0 vis-linewise !
   else
     cursor @ offset->linecol drop { line }
     line line-start { lo }
     line 1+ 0 linecol->offset { hi }
+    1 yank-linewise !
     bflags @ BF_READONLY and 0= if
-      lo hi yank-range
+      lo hi yank-range  yank-normalize-line
       lo hi delete-range
     then
   then ;
 
-: cmd-paste-after            \ p: paste after the cursor
+: cmd-paste-after            \ p: paste after the cursor (linewise register → new line below)
   yank-len @ 0> if
-    cursor @ g-size < if fe-right then
-    yank-insert
+    yank-linewise @ if
+      cursor @ offset-line 1+ line-start cursor !
+      yank-insert
+      cursor @ yank-len @ - cursor !
+      fe-line-first-nonblank
+    else
+      cursor @ g-size < if fe-right then
+      yank-insert
+    then
   then ;
 
-: cmd-paste-before           \ P: paste before the cursor
-  yank-len @ 0> if yank-insert then ;
+: cmd-paste-before           \ P: paste before the cursor (linewise register → new line above)
+  yank-len @ 0> if
+    yank-linewise @ if
+      cursor @ offset-line line-start cursor !
+      yank-insert
+      cursor @ yank-len @ - cursor !
+      fe-line-first-nonblank
+    else
+      yank-insert
+    then
+  then ;
 
 : cmd-visual-cancel          \ ESC: exit visual selection
-  0 visual ! ;
+  0 visual !  0 vis-linewise ! ;
 
 
 \ ===== selection modes: MOVE / SELECT(Replace) / EXTEND =====
@@ -3196,6 +3268,7 @@ variable op-start  0 op-start !
 : op-readonly-cancel? ( -- f )  op-kind @ OP-DELETE =  op-kind @ OP-CHANGE =  or  bflags @ BF_READONLY and  and ;
 : op-apply { lo hi -- }                         \ act on [lo,hi) then exit
   op-readonly-cancel? if mode-pop exit then
+  0 yank-linewise !
   lo hi yank-range
   op-kind @ OP-DELETE =  op-kind @ OP-CHANGE =  or if
     lo hi delete-range
@@ -3215,7 +3288,8 @@ variable op-start  0 op-start !
 : op-lines { l0 l1 -- }          \ whole lines l0..l1 (inclusive)
   op-readonly-cancel? if mode-pop exit then
   l0 line-start  l1 1+ line-start  { lo hi }
-  lo hi yank-range
+  1 yank-linewise !
+  lo hi yank-range  yank-normalize-line
   op-kind @ OP-DELETE =  op-kind @ OP-CHANGE =  or if
     lo hi delete-range  lo linewise-done
     op-kind @ OP-CHANGE = if  insert-mode-xt @ execute mode-set  else  mode-pop  then
@@ -3275,15 +3349,17 @@ create op-motion-tps /keymap cells allot
 : cmd-d
   gctx @ buffers-buf @ = if buffer-list-close else
     visual @ if
-      bflags @ BF_READONLY and 0= if  vis-lo vis-hi yank-range vis-lo vis-hi delete-range  then
-      0 visual !
+      vis-linewise @ yank-linewise !
+      bflags @ BF_READONLY and 0= if  vis-lo vis-hi yank-range  yank-normalize-line  vis-lo vis-hi delete-range  then
+      0 visual !  0 vis-linewise !
     else OP-DELETE op-begin then
   then ;
 \ c (change): visual = delete selection + insert; otherwise c+motion
 : cmd-c
   visual @ if
-    bflags @ BF_READONLY and 0= if  vis-lo vis-hi yank-range vis-lo vis-hi delete-range  then
-    0 visual !  insert-mode-xt @ execute mode-set
+    vis-linewise @ yank-linewise !
+    bflags @ BF_READONLY and 0= if  vis-lo vis-hi yank-range  yank-normalize-line  vis-lo vis-hi delete-range  then
+    0 visual !  0 vis-linewise !  insert-mode-xt @ execute mode-set
   else OP-CHANGE op-begin then ;
 \ C: change to end of line (same as c$) — note that Gforth word names are case-insensitive, so it cannot be called cmd-C (it would collide with cmd-c)
 : cmd-change-eol  OP-CHANGE op-begin  op-dollar ;
@@ -3291,7 +3367,7 @@ create op-motion-tps /keymap cells allot
 : cmd-delete-eol  OP-DELETE op-begin  op-dollar ;
 \ x in the *buffers* list = close the current-line buffer; otherwise = delete a character
 : cmd-x  gctx @ buffers-buf @ = if buffer-list-close else fe-delete then ;
-: cmd-y  visual @ if  vis-lo vis-hi yank-range 0 visual !  else OP-YANK op-begin then ;
+: cmd-y  visual @ if  vis-linewise @ yank-linewise !  vis-lo vis-hi yank-range  yank-normalize-line  0 visual !  0 vis-linewise !  else OP-YANK op-begin then ;
 
 \ control key codes: Ctrl-<letter> = letter - 96 (Ctrl-A=1 … Ctrl-Z=26)
 : ctrl-code ( ch -- n ) 96 - ;
@@ -3640,6 +3716,7 @@ variable fmt-clen 0 fmt-clen !
   [char] j ['] fe-down        bind-command      \ j down
   [char] x ['] cmd-x          bind-command      \ x delete after the cursor (in the *buffers* list = close the current line)
   [char] v ['] cmd-visual          bind-command  \ v visual selection
+  [char] V ['] cmd-visual-line     bind-command  \ V linewise visual selection
   [char] s ['] sel-word-fwd        bind-command  \ s SELECT to the next word start (Replace)
   [char] S ['] ext-word-fwd        bind-command  \ S EXTEND to the next word start
   [char] f ['] sel-word-end        bind-command  \ f SELECT to the word end
