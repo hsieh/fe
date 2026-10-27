@@ -18,7 +18,7 @@ Three design choices set it apart:
 2. **A familiar, complete daily driver.** vi-style modal editing, LSP, live grep, fuzzy file/buffer pickers, multiple windows, undo/redo, and keyboard macros. You don't give up ordinary editor capabilities to use Forth.
 3. **The editor itself is modifiable on the fly.** Configuration, command definitions, key bindings, and the extension mechanism are all Forth — they are the core of the project, not an implementation detail. Edit `~/.fe`, then press `Ctrl-x` to reload.
 
-- Depends on **Gforth ≥ 0.7.9** plus a C compiler (only needed on first run to compile the termios/width bindings; afterwards the result is cached).
+- Depends on **Gforth 1.0** (0.7.9 may also work) plus a C compiler (only needed on first run to compile the termios/width bindings; afterwards the result is cached).
 - live grep needs one of `rg`, `git`, or `grep` (`rg` is preferred; if absent it falls back to `git grep` → `grep`).
 - macOS / Linux only, ANSI / xterm terminals.
 
@@ -40,7 +40,7 @@ brew install gforth
 sudo apt install gforth
 ```
 
-Check the version (it must be ≥ 0.7.9; if your distro's package is too old, see "Building from source" below):
+Check the version (it must be 1.0; 0.7.9 may also work. If your distro's package is too old, see "Building from source" below):
 
 ```sh
 gforth --version
@@ -49,7 +49,7 @@ gforth --version
 **Building from source (generic, any Linux)**
 
 ```sh
-# Download gforth-0.7.9.tar.gz from https://gforth.org or a GNU mirror, extract it, then:
+# Download gforth-1.0.0.tar.xz from https://gforth.org, extract it, then:
 ./configure
 make
 sudo make install

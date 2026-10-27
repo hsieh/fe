@@ -18,7 +18,7 @@
 2. **熟悉、完整的日常工具。** vi 风格模式编辑、LSP、live grep、模糊文件/buffer 筛选、多窗口、撤销重做、键盘宏。用 Forth 并不意味着放弃普通编辑器的能力。
 3. **编辑器本身可以被现场改造。** 配置、命令定义、按键绑定和扩展机制都是 Forth——它们是项目的核心理念，而不是实现细节。改一下 `~/.fe`，按 `Ctrl-x` 即重载。
 
-- 依赖 **Gforth ≥ 0.7.9** + 一个 C 编译器（仅首次运行编译 termios/宽度绑定时需要，之后走缓存）。
+- 依赖 **Gforth 1.0**（0.7.9 也可能可用） + 一个 C 编译器（仅首次运行编译 termios/宽度绑定时需要，之后走缓存）。
 - live grep 需要 `rg` 或 `git` 或 `grep` 之一（`rg` 优先，没有则回退 `git grep` → `grep`）。
 - 仅支持 macOS / Linux，ANSI / xterm 类终端。
 
@@ -40,7 +40,7 @@ brew install gforth
 sudo apt install gforth
 ```
 
-装完确认版本（需要 ≥ 0.7.9；若系统源里版本过旧，见下面「从源码编译」）：
+装完确认版本（需要 1.0；0.7.9 也可能可用。若系统源里版本过旧，见下面「从源码编译」）：
 
 ```sh
 gforth --version
@@ -49,7 +49,7 @@ gforth --version
 **从源码编译（通用，任何 Linux）**
 
 ```sh
-# 从 https://gforth.org 或 GNU 镜像下载 gforth-0.7.9.tar.gz，解压后：
+# 从 https://gforth.org 下载 gforth-1.0.0.tar.xz，解压后：
 ./configure
 make
 sudo make install

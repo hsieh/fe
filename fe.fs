@@ -1,7 +1,7 @@
 #! /bin/sh
 : ## ; 0 [if]
 # fe - minimal Forth editor (embedded same-process Forth REPL)
-# deps: gforth >= 0.7.9; first run needs a C compiler (libcc compiles termios bindings, then cached)
+# deps: gforth 1.0 (0.7.9 may also work); first run needs a C compiler (libcc compiles termios bindings, then cached)
 # usage: fe [file...]  (or via symlink: ln -s ~/local/fe/fe.fs ~/bin/fe)
 # dual interpretation: shell runs first (resolve symlink + locate dir + pick gforth-fast + exec self),
 # then Gforth re-reads the same file; the hash-bang line is a comment alias, and the
