@@ -2040,7 +2040,7 @@ variable ft-cw 0 ft-cw !
   ft-max !  ft-u !  ft-a !
   0 ft-w !  0 ft-i !
   begin ft-i @ ft-u @ < while
-    ft-a @ ft-i @ +  ft-w @  mb-wl ft-cw !  ft-cn !
+    ft-a @ ft-i @ +  ft-w @  mb-wl ft-cn !  ft-cw !
     ft-cw @ ft-w +!   ft-cn @ ft-i +!
   repeat
   ft-w @ { tw }
@@ -2049,12 +2049,12 @@ variable ft-cw 0 ft-cw !
   then
   0 ft-w !  0 ft-i !
   begin ft-w @ tw ft-max @ 1- - < while
-    ft-a @ ft-i @ +  ft-w @  mb-wl ft-cw !  ft-cn !
+    ft-a @ ft-i @ +  ft-w @  mb-wl ft-cn !  ft-cw !
     ft-cw @ ft-w +!   ft-cn @ ft-i +!
   repeat
   s" …" fb-str  1 ft-w !
   begin ft-i @ ft-u @ < while
-    ft-a @ ft-i @ +  ft-w @  mb-wl ft-cw !  ft-cn !
+    ft-a @ ft-i @ +  ft-w @  mb-wl ft-cn !  ft-cw !
     ft-w @ ft-cw @ + ft-max @ > if  ft-w @ exit  then
     ft-a @ ft-i @ +  ft-cn @  fb-str
     ft-cw @ ft-w +!   ft-cn @ ft-i +!
@@ -2077,7 +2077,7 @@ variable fm-cn 0 fm-cn !
   begin
     fm-i @ fm-u @ <  fm-w @ fm-max @ <  and
   while
-    fm-a @ fm-i @ +  fm-w @  mb-wl fm-cw !  fm-cn !
+    fm-a @ fm-i @ +  fm-w @  mb-wl fm-cn !  fm-cw !
     fm-w @ fm-cw @ + fm-max @ > if exit then
     fm-a @ fm-i @ + c@ 10 = if
       32 fb-c
