@@ -624,18 +624,6 @@ variable qmsg-udn 0 qmsg-udn !
     s" replace: " ['] qrep-accept-pat prompt-open
   then ;
 
-\ save as: prompt for a path -> associate it with the file, clear BF_NOFILE, save
-: do-save-as
-  pbuflen @ 511 min { n }
-  n gctx @ B:NAMELEN + !
-  pbuf  gctx @ B:NAME +  n move
-  gctx @ B:NAME +  gctx @ B:FNAME + !
-  n gctx @ B:FLEN + !
-  \ the cached absolute URI is now stale (name changed)
-  gctx @ B:URI + @ ?dup if free throw  0 gctx @ B:URI + !  then
-  0 gctx @ B:URILEN + !
-  bflags @ BF_NOFILE invert and  bflags !
-  save-current ;
 \ open by name: prompt for a path -> open (create a new empty buffer if it does not exist)
 \ ===== path completion (B: recursive file list, find first + pure-Forth recursive fallback)=====
 variable pdir-len 0 pdir-len !
@@ -1437,6 +1425,20 @@ variable csh-len 0 csh-len !
   then
   pm-a @ pm-u @ ;
 
+\ save as: prompt for a path -> associate it with the file, clear BF_NOFILE, save
+: do-save-as
+  pbuf pbuflen @ tilde-expand { a u }      \ expand ~ → $HOME (keep the stored name consistent with do-buffer-open)
+  u 511 min { n }
+  n gctx @ B:NAMELEN + !
+  a  gctx @ B:NAME +  n move
+  gctx @ B:NAME +  gctx @ B:FNAME + !
+  n gctx @ B:FLEN + !
+  \ the cached absolute URI is now stale (name changed)
+  gctx @ B:URI + @ ?dup if free throw  0 gctx @ B:URI + !  then
+  0 gctx @ B:URILEN + !
+  bflags @ BF_NOFILE invert and  bflags !
+  save-current ;
+
 \ whether the current character (at lps-i, length lps-n) contains a match byte; consume all marks within the character
 : lp-char-marked? ( -- f )
   0 lps-hit !
@@ -1787,7 +1789,7 @@ variable lp-create-xt  0 lp-create-xt !
   mode-listpanel mode-push ;
 
 \ ===== sources: file / buffer =====
-: do-buffer-open ( a u -- )  buffer-open ;
+: do-buffer-open ( a u -- )  tilde-expand buffer-open ;
 : do-buffer-switch ( a u -- )  tilde-expand buffer-find ?dup if buffer-switch then ;
 \ collect buffer names (all, including system buffers; buffer-close rejects system buffers on d/x close)
 \ no locals inside the loop (locals live on the return stack; loop + to corrupt it): use globals
