@@ -1980,8 +1980,22 @@ variable close-armed  0 close-armed !      \ the modified buffer awaiting close 
   dup leader-key !
   pmode-leader @ bind-prefix ;
 
-\ config layer: bind into the leader keymap (e.g. char b ' open-browser bind-leader)
-: bind-leader ( key xt -- )  pmode-leader @ bind-mode ;
+\ config layer: bind into the leader keymap.
+\ bind-leader: auto-pop — the command runs in command mode (mode-pop first), the common case.
+\ bind-leader-keep: no pop — the command runs while still in leader mode (chaining / opening another mode).
+create leader-xts /keymap cells allot      \ the real xt per key (for the auto-pop executor)
+
+\ auto-pop executor: leave the leader mode, then run the real command bound to the pressed key
+: leader-exec ( -- )
+  mode-pop
+  last-key @ key-idx cells leader-xts + @ execute ;
+
+: bind-leader ( key xt -- )      \ auto-pop（先 mode-pop 再执行）
+  over key-idx cells leader-xts + !
+  ['] leader-exec  pmode-leader @ bind-mode ;
+
+: bind-leader-keep ( key xt -- ) \ 不 pop（直接绑定，现状）
+  pmode-leader @ bind-mode ;
 \ window commands: mode-pop first (leave the prefix mode) then act, to avoid leaking the prefix mode into the old window
 : cmd-split-v        mode-pop split-v ;
 : cmd-split-s        mode-pop split-s ;
@@ -3697,6 +3711,7 @@ variable fmt-clen 0 fmt-clen !
   op-motion-tps   /keymap cells erase
   keymap-listpanel /keymap cells erase
   keymap-qrep     /keymap cells erase
+  leader-xts      /keymap cells erase
   \ register the named prefixes g/z/w/leader (all via register-prefix; returns the mode)
   0 nprefix !
   s" g" register-prefix pmode-g !
