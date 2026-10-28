@@ -537,13 +537,22 @@ variable dg-buf-found 0 dg-buf-found !
 \ per-buffer cached absolute file:// URI (built once; cwd is stable, fe never chdirs).
 \ invalidated by do-save-as (rename) and freed by buffer-free.
 : buf-uri ( -- a u )   gctx @ B:URI + @  gctx @ B:URILEN + @ ;
+\ cache the current buffer's absolute URI without clobbering the active LSP buffer's lsp-uri
+\ (lsp-build-uri writes the global lsp-uri, which gd/hover/… use for the active buffer; diagnostics
+\ dispatch calls buffer-by-uri for other buffers, so save/restore around the build)
+create lsp-uri-save 512 allot
+variable lsp-uri-save-len 0 lsp-uri-save-len !
 : buf-uri-ensure ( -- )
   gctx @ B:URI + @ 0= if
+    lsp-uri-len @ lsp-uri-save-len !
+    lsp-uri lsp-uri-save lsp-uri-len @ move
     lsp-build-uri
     lsp-uri-len @ allocate throw
     lsp-uri over lsp-uri-len @ move
     gctx @ B:URI + !
     lsp-uri-len @ gctx @ B:URILEN + !
+    lsp-uri-save lsp-uri lsp-uri-save-len @ move
+    lsp-uri-save-len @ lsp-uri-len !
   then ;
 
 \ find the buffer whose absolute file:// URI matches (a u); 0 = none.
