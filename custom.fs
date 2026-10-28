@@ -1417,9 +1417,11 @@ variable csh-len 0 csh-len !
   pm-u @ 1 >  pm-a @ c@ 126 =  pm-a @ 1+ c@ 47 =  and  and if
     s" HOME" getenv hu-home ! ha-home !
     hu-home @ 0> if
+      hu-home @ 511 min hu-home !            \ clamp HOME (tildebuf is 512)
       ha-home @ tildebuf hu-home @ move
-      pm-a @ 1+  tildebuf hu-home @ +  pm-u @ 1-  move
-      hu-home @ pm-u @ 1- + tilde-len !
+      pm-u @ 1-  511 hu-home @ -  min  tilde-len !   \ remaining path (clamped)
+      pm-a @ 1+  tildebuf hu-home @ +  tilde-len @  move
+      hu-home @ tilde-len @ + tilde-len !    \ total expanded length (<= 511)
       tildebuf tilde-len @ exit
     then
   then
@@ -1428,7 +1430,7 @@ variable csh-len 0 csh-len !
 \ save as: prompt for a path -> associate it with the file, clear BF_NOFILE, save
 : do-save-as
   pbuf pbuflen @ tilde-expand { a u }      \ expand ~ → $HOME (keep the stored name consistent with do-buffer-open)
-  u 511 min { n }
+  u path-max @ 1- min { n }
   n gctx @ B:NAMELEN + !
   a  gctx @ B:NAME +  n move
   gctx @ B:NAME +  gctx @ B:FNAME + !

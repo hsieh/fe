@@ -1,6 +1,6 @@
 \ ===== test/test-state.fs — 字段偏移契约 =====
-\ 这些常量是 state.fs 的「ABI」：字段重排会破坏 buffer/窗口布局与序列化。
-\ 用断言锁死偏移，防止无意改动。
+\ state.fs 用 fld: 自动计算偏移，B:*/W:* 是常量（偏移值）。
+\ B:NAME 的大小由 path-max（FE_PATH_MAX）决定，其后的偏移随之移动，这里按 path-max 计算。
 
 : test-state-buffer-fields
   assert( B:GBUF 0 = )
@@ -30,20 +30,21 @@
   assert( B:FNAME 192 = )
   assert( B:FLEN 200 = )
   assert( B:NAME 208 = )
-  assert( B:LEPOS 720 = )
-  assert( B:LEDELTA 728 = )
-  assert( B:LENL 736 = )
-  assert( B:LEPEND 744 = )
-  assert( B:LECMPLX 752 = )
-  assert( B:LINENR 760 = )
-  assert( B:SAVEDURP 768 = )
-  assert( B:SYNTAX 776 = )
-  assert( B:LANGOVR 784 = )
-  assert( B:NDIAGS 792 = )
-  assert( B:DIAGS 800 = )
-  assert( B:URI 808 = )
-  assert( B:URILEN 816 = )
-  assert( /BUF 824 = ) ;
+  \ B:NAME 大小可配（8 对齐）；其后的字段随 path-max 移动
+  assert( B:LEPOS  208 path-max @ 7 + -8 and +  = )
+  assert( B:LEDELTA  B:LEPOS  8 + = )
+  assert( B:LENL     B:LEPOS 16 + = )
+  assert( B:LEPEND   B:LEPOS 24 + = )
+  assert( B:LECMPLX  B:LEPOS 32 + = )
+  assert( B:LINENR   B:LEPOS 40 + = )
+  assert( B:SAVEDURP B:LEPOS 48 + = )
+  assert( B:SYNTAX   B:LEPOS 56 + = )
+  assert( B:LANGOVR  B:LEPOS 64 + = )
+  assert( B:NDIAGS   B:LEPOS 72 + = )
+  assert( B:DIAGS    B:LEPOS 80 + = )
+  assert( B:URI      B:LEPOS 88 + = )
+  assert( B:URILEN   B:LEPOS 96 + = )
+  assert( /BUF  B:LEPOS 104 + = ) ;
 
 : test-state-window-fields
   assert( W:B 0 = )

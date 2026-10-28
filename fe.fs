@@ -1064,7 +1064,7 @@ variable wb-save 0 wb-save !
   0 b B:LANGOVR + !       \ language: default automatic (by filename)
   max-undorec 6 * cells allocate throw  urecs !
   1024 g-init
-  len 511 min { n }
+  len path-max @ 1- min { n }
   n b B:NAMELEN + !
   name b B:NAME + n move
   b B:NAME + b B:FNAME + !           \ fname points at this buffer's name

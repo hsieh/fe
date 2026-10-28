@@ -264,8 +264,9 @@ create lsp-tmp 512 allot
   0 lsp-uri-len !
   s" file://" lsp-uri lsp-uri-len @ + swap move  7 lsp-uri-len +!
   fname @ c@ 47 = if
-    \ already an absolute path
-    fname @ flen @  lsp-uri lsp-uri-len @ + swap move  flen @ lsp-uri-len +!
+    \ already an absolute path (clamp to 505: lsp-uri is 512 bytes, "file://" takes 7)
+    fname @  lsp-uri lsp-uri-len @ +  flen @ 505 min  move
+    flen @ 505 min lsp-uri-len +!
   else
     \ relative path: join cwd + "/" + fname, realpath resolves ../ and symlinks
     cwd-buf 511 lsp-getcwd { clen }
