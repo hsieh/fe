@@ -631,6 +631,9 @@ variable qmsg-udn 0 qmsg-udn !
   pbuf  gctx @ B:NAME +  n move
   gctx @ B:NAME +  gctx @ B:FNAME + !
   n gctx @ B:FLEN + !
+  \ the cached absolute URI is now stale (name changed)
+  gctx @ B:URI + @ ?dup if free throw  0 gctx @ B:URI + !  then
+  0 gctx @ B:URILEN + !
   bflags @ BF_NOFILE invert and  bflags !
   save-current ;
 \ open by name: prompt for a path -> open (create a new empty buffer if it does not exist)
@@ -2350,12 +2353,21 @@ variable match-gsz  -1 match-gsz !
 
 \ ===== diagnostics (LSP publishDiagnostics; rendered as underlines)=====
 256 constant max-diags
-create diag-line max-diags cells allot
-create diag-b0   max-diags cells allot
-create diag-b1   max-diags cells allot
-create diag-sev  max-diags cells allot
-variable ndiags  0 ndiags !
-: diag-touch  0 ndiags ! ;               \ after an edit the old diagnostic offsets are stale; clear them (wait for the server to resend)
+\ per-buffer storage: B:NDIAGS = count (inline), B:DIAGS = pointer to a lazily-allocated block of
+\ 4 arrays (line/b0/b1/sev). invariant: ndiags>0 ⟹ B:DIAGS≠0 (reads only happen when ndiags>0,
+\ writes go through diag-ensure).
+: ndiags    gctx @ B:NDIAGS + ;          \ ( -- addr ) field access; existing @ / ! / +! call sites unchanged
+: diag-arrs gctx @ B:DIAGS  + @ ;        \ ( -- block|0 )
+: diag-ensure ( -- )
+  diag-arrs 0= if
+    4 max-diags cells * allocate throw  gctx @ B:DIAGS + !
+  then ;
+: diag-line diag-arrs ;
+: diag-b0   diag-arrs max-diags cells + ;
+: diag-b1   diag-arrs 2 max-diags cells * + ;
+: diag-sev  diag-arrs 3 max-diags cells * + ;
+
+: diag-touch  0 ndiags ! ;               \ after an edit the old diagnostic offsets are stale; clear the count (keep the block to avoid realloc churn)
 ' diag-touch is edit-touch-xt
 
 \ diagnostic styles: error = white on red, warning = bright yellow underline, info = blue underline, hint = dim gray
@@ -2365,31 +2377,52 @@ variable diag-info-attr <A Blue >FG Underline A> diag-info-attr !
 variable diag-hint-attr Dim diag-hint-attr !
 
 \ merge syntax segments + diagnostic segments: return (hlend attr)
+\ diagnostics are sorted by b0 (see diag-sort in lsp.fs); a binary search finds the boundaries in O(log n)
 variable dm-a  0 dm-a !
 variable dm-e  0 dm-e !
 variable dm-at 0 dm-at !
-variable dm-b0 0 dm-b0 !
+variable dm-i  0 dm-i !      \ lower-bound index: first diag with b0 > a
+variable dg-lo 0 dg-lo !
+variable dg-hi 0 dg-hi !
+variable dg-mid 0 dg-mid !
+variable dg-a  0 dg-a !
+
+\ first index i with diag-b0[i] > a (ndiags when none); requires diag arrays sorted by b0
+: diag-lower ( a -- i )
+  dg-a !
+  0 dg-lo !
+  ndiags @ dg-hi !
+  begin dg-lo @ dg-hi @ < while
+    dg-lo @ dg-hi @ + 2/ dg-mid !
+    diag-b0 dg-mid @ cells + @  dg-a @ <= if
+      dg-mid @ 1+ dg-lo !
+    else
+      dg-mid @ dg-hi !
+    then
+  repeat
+  dg-lo @ ;
+
 : diag-merge ( a e at -- e' at' )
   dm-at !  dm-e !  dm-a !
-  \ is a inside a diagnostic?
-  ndiags @ 0 ?do
-    dm-a @ diag-b0 i cells + @ >=  dm-a @ diag-b1 i cells + @ <  and if
-      dm-e @ diag-b1 i cells + @ min dm-e !
-      diag-sev i cells + @ 1 = if diag-err-attr @
-      else diag-sev i cells + @ 2 = if diag-warn-attr @
-      else diag-sev i cells + @ 3 = if diag-info-attr @
+  dm-a @ diag-lower dm-i !
+  \ contains a: the diagnostic just before the lower bound (b0 <= a, check b1 > a)
+  dm-i @ 0> if
+    dm-i @ 1- dg-mid !
+    diag-b1 dg-mid @ cells + @  dm-a @ > if
+      dm-e @ diag-b1 dg-mid @ cells + @ min dm-e !
+      diag-sev dg-mid @ cells + @ 1 = if diag-err-attr @
+      else diag-sev dg-mid @ cells + @ 2 = if diag-warn-attr @
+      else diag-sev dg-mid @ cells + @ 3 = if diag-info-attr @
       else diag-hint-attr @ then then then
-      dm-at @ or  dm-e @ swap
-      unloop exit
+      dm-at @ or  dm-e @ swap  exit
     then
-  loop
-  \ does a diagnostic start inside [a, e)?
-  ndiags @ 0 ?do
-    diag-b0 i cells + @ dm-b0 !
-    dm-b0 @ dm-a @ >  dm-b0 @ dm-e @ <  and if
-      dm-b0 @ dm-at @  unloop exit
+  then
+  \ next start: the diagnostic at the lower bound (first b0 > a)
+  dm-i @ ndiags @ < if
+    diag-b0 dm-i @ cells + @  dm-e @ < if
+      diag-b0 dm-i @ cells + @  dm-at @  exit
     then
-  loop
+  then
   dm-e @ dm-at @ ;
 
 : hl-attr { a -- hlend attr }
@@ -3547,7 +3580,6 @@ variable theme-cur 0 theme-cur !   \ 0=dark 1=mono
   repl-buffer-enter
   cm-act @ if cm-close then
   -1 cp-cur !  -1 cindex !  0 ncands !  -1 lsp-req-cur !
-  0 ndiags !
   lsp-refresh-diags ;
 
 \ showcmd: op mode shows d/y; prefixes show g/^W (the right end of the statusline)

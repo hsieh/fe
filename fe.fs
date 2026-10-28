@@ -1091,6 +1091,8 @@ variable wb-save 0 wb-save !
   b B:GBUF + @ free throw
   b B:LIX + @ ?dup if free throw then
   b B:URECS + @ free throw
+  b B:DIAGS + @ ?dup if free throw then
+  b B:URI   + @ ?dup if free throw then
   b free throw ;
 
 \ switch: save the old buffer's saved view, switch gctx, restore the new buffer's saved view

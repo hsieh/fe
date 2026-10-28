@@ -75,7 +75,11 @@ defer buffer-free-xt                       \ ( b -- ) called before a buffer is 
 768 constant B:SAVEDURP  \ undo pointer urp at save time (-1 = content differs from disk and there is no undo save point)
 776 constant B:SYNTAX    \ syntax-highlight override: -1=follow global 0=force off 1=force on
 784 constant B:LANGOVR   \ language override: 0=automatic; otherwise = rule-word xt (forced by :syntax)
-792 constant /BUF
+792 constant B:NDIAGS    \ LSP diagnostics: active count for this buffer
+800 constant B:DIAGS     \ LSP diagnostics: pointer to the 4-array block (line/b0/b1/sev), 0 = none (lazy)
+808 constant B:URI       \ cached absolute file:// URI (pointer, 0 = not built); freed on buffer-free, invalidated on rename
+816 constant B:URILEN    \ cached URI length
+824 constant /BUF
 
 \ --- window field-access words ---
 : cursor     wctx @ W:CURSOR   + ;

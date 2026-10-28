@@ -528,21 +528,90 @@ variable dg-c1   0 dg-c1 !
 variable dg-sv   0 dg-sv !
 variable dg-noise 0 dg-noise !
 variable dg-code  0 dg-code !
+variable dg-buf 0 dg-buf !          \ target buffer for publishDiagnostics (dispatched by URI)
+variable dg-saved-g 0 dg-saved-g !  \ saved gctx while filling another buffer's diagnostics
+variable dg-uri-a 0 dg-uri-a !      \ incoming publishDiagnostics URI (addr len)
+variable dg-uri-l 0 dg-uri-l !
+variable dg-buf-found 0 dg-buf-found !
+
+\ per-buffer cached absolute file:// URI (built once; cwd is stable, fe never chdirs).
+\ invalidated by do-save-as (rename) and freed by buffer-free.
+: buf-uri ( -- a u )   gctx @ B:URI + @  gctx @ B:URILEN + @ ;
+: buf-uri-ensure ( -- )
+  gctx @ B:URI + @ 0= if
+    lsp-build-uri
+    lsp-uri-len @ allocate throw
+    lsp-uri over lsp-uri-len @ move
+    gctx @ B:URI + !
+    lsp-uri-len @ gctx @ B:URILEN + !
+  then ;
+
+\ find the buffer whose absolute file:// URI matches (a u); 0 = none.
+\ the buffer name may be relative while gopls sends an absolute URI, so compare via lsp-build-uri
+\ (which resolves cwd + realpath, exactly like the didOpen URI); skip non-file buffers, and cache
+\ each buffer's URI so repeated scans are pure string compares (no getcwd/realpath syscalls).
+: buffer-by-uri ( a u -- buf|0 )
+  dg-uri-l !  dg-uri-a !
+  0 dg-buf-found !
+  gctx @ dg-saved-g !
+  buffers-first @
+  begin dup while
+    dup gctx !
+    bflags @ BF_NOFILE and 0= if
+      buf-uri-ensure
+      buf-uri  dg-uri-a @ dg-uri-l @  compare 0= if
+        gctx @ dg-buf-found !
+      then
+    then
+    B:NEXT + @
+  repeat
+  drop
+  dg-saved-g @ gctx !
+  dg-buf-found @ ;
+
+\ sort the 4 diagnostic arrays by b0 (insertion sort, stable; n<=256, once per publishDiagnostics).
+\ the render path's diag-lower binary search requires this order.
+variable dg-si 0 dg-si !
+variable dg-sj 0 dg-sj !
+variable dg-kb0 0 dg-kb0 !
+variable dg-kb1 0 dg-kb1 !
+variable dg-kl 0 dg-kl !
+variable dg-ks 0 dg-ks !
+: diag-sort ( -- )
+  1 dg-si !
+  begin dg-si @ ndiags @ < while
+    diag-b0 dg-si @ cells + @ dg-kb0 !
+    diag-b1 dg-si @ cells + @ dg-kb1 !
+    diag-line dg-si @ cells + @ dg-kl !
+    diag-sev dg-si @ cells + @ dg-ks !
+    dg-si @ dg-sj !
+    begin dg-sj @ 0>  diag-b0 dg-sj @ 1- cells + @  dg-kb0 @ >  and while
+      diag-b0 dg-sj @ 1- cells + @  diag-b0 dg-sj @ cells + !
+      diag-b1 dg-sj @ 1- cells + @  diag-b1 dg-sj @ cells + !
+      diag-line dg-sj @ 1- cells + @  diag-line dg-sj @ cells + !
+      diag-sev dg-sj @ 1- cells + @  diag-sev dg-sj @ cells + !
+      -1 dg-sj +!
+    repeat
+    dg-kb0 @ diag-b0 dg-sj @ cells + !
+    dg-kb1 @ diag-b1 dg-sj @ cells + !
+    dg-kl @ diag-line dg-sj @ cells + !
+    dg-ks @ diag-sev dg-sj @ cells + !
+    1 dg-si +!
+  repeat ;
 
 : lsp-parse-diagnostics ( n -- f )
   drop   \ n is unused (rbuf is global); returns true = diagnostics were filled (redraw needed)
-  gctx @ lsp-gbuf @ <> if false exit then   \ the current buffer is not the LSP-bound one (e.g. *refs*) → drop the diagnostics, to keep them from leaking into another buffer's render
   rbuf @ cj-parse ?dup 0= if false exit then dg-root !
   s" params" ck-set  dg-root @ ck cj-get ?dup 0= if dg-root @ cj-delete false exit then dg-p !
-  \ uri filter: only handle diagnostics for the current file (gopls sends diagnostics for the whole workspace)
-  s" uri" ck-set  dg-p @ ck cj-get ?dup if
-    cj-str ?dup if
-      dup c-strlen  lsp-uri lsp-uri-len @  compare 0= 0= if
-        dg-root @ cj-delete false exit
-      then
-    then
-  then
+  \ uri → target buffer: gopls sends diagnostics for the whole workspace, so dispatch by URI instead of dropping non-current files
+  s" uri" ck-set  dg-p @ ck cj-get ?dup 0= if dg-root @ cj-delete false exit then
+  cj-str ?dup 0= if dg-root @ cj-delete false exit then
+  dup c-strlen buffer-by-uri ?dup 0= if dg-root @ cj-delete false exit then
+  dg-buf !
   s" diagnostics" ck-set  dg-p @ ck cj-get ?dup 0= if dg-root @ cj-delete false exit then dg-arr !
+  gctx @ dg-saved-g !                       \ save the active buffer; fill the target buffer's diagnostics
+  dg-buf @ gctx !
+  diag-ensure
   0 ndiags !
   dg-arr @ cj-asize max-diags min lr-lim !
   0 lr-i !
@@ -567,6 +636,8 @@ variable dg-code  0 dg-code !
     1 ndiags +!
     1 lr-i +!
   repeat
+  diag-sort                                 \ keep b0 sorted for the render path's binary search
+  dg-saved-g @ gctx !                       \ restore the active buffer
   dg-root @ cj-delete
   true ;
 
@@ -737,7 +808,7 @@ variable lsp-onresp-xt 0 lsp-onresp-xt !   \ the xt of lsp-on-response (defined 
   0 lsp-ready? !
   s" lsp: starting" msg! ;
 
-\ re-fetch diagnostics when switching back to the LSP file (buffer-enter clears ndiags)
+\ diagnostics are per-buffer now; lsp-refresh-diags re-fetches the current buffer's diagnostics when switching back to it
 \ current buffer differs from the LSP-bound one → re-didOpen the current buffer (LSP stays usable after switching to another file)
 : lsp-bind-buf ( -- )
   lsp-ready? @ 0= if exit then

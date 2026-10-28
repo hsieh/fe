@@ -39,7 +39,11 @@
   assert( B:SAVEDURP 768 = )
   assert( B:SYNTAX 776 = )
   assert( B:LANGOVR 784 = )
-  assert( /BUF 792 = ) ;
+  assert( B:NDIAGS 792 = )
+  assert( B:DIAGS 800 = )
+  assert( B:URI 808 = )
+  assert( B:URILEN 816 = )
+  assert( /BUF 824 = ) ;
 
 : test-state-window-fields
   assert( W:B 0 = )
