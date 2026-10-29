@@ -73,11 +73,17 @@ variable word-boundary 0 word-boundary !   \ 1=naive matching requires word boun
 
 \ search backward from from (inclusive); return the position, or -1 if not found
 : search-back { from }
-  from
-  begin
-    dup 0>=
-  while
-    dup match-at? if exit then
-    1-
-  repeat
-  drop -1 ;
+  regex-search @ re-valid @ and if
+    snap-build
+    snap @ snap-len @ from re-find-prev
+    dup -2 = if drop -1  1 re-timeout ! then
+  else
+    from
+    begin
+      dup 0>=
+    while
+      dup match-at? if exit then
+      1-
+    repeat
+    drop -1
+  then ;

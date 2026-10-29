@@ -112,6 +112,41 @@ c-library regex-c
   \c   timeout_end(&old_sa, &old_tv);
   \c   return result;
   \c }
+  \c long long re_find_prev(char *text, int len, int pos) {
+  \c   if (!re || re_broken) return -2;
+  \c   if (len <= 0 || pos < 0) return -1;
+  \c   if (pos >= len) pos = len - 1;
+  \c   struct sigaction old_sa; struct itimerval old_tv;
+  \c   regmatch_t pm[1];
+  \c   timeout_start(&old_sa, &old_tv);
+  \c   if (sigsetjmp(re_env, 1) != 0) { timeout_end(&old_sa, &old_tv); re_broken = 1; return -2; }
+  \c   long long result = -1;
+  \c   if (anchor_in_pat) {
+  \c     /* last match at <= pos: scan forward from 0 and keep the latest (^/$ = line anchors) */
+  \c     int p = 0;
+  \c     while (p <= pos) {
+  \c       pm[0].rm_so = p; pm[0].rm_eo = len;
+  \c       if (regexec(re, text, 1, pm, REG_STARTEND) != 0) break;
+  \c       long long s = pm[0].rm_so;
+  \c       if (caret_in_pat && s == p && p > 0 && text[p-1] != '\n') { p = s + 1; continue; }
+  \c       if (s > pos) break;
+  \c       result = s;
+  \c       p = s + 1;
+  \c     }
+  \c   } else {
+  \c     /* unanchored: iterate matches, keep the last one starting at <= pos */
+  \c     int p = 0;
+  \c     while (p <= pos) {
+  \c       if (regexec(re, text+p, 1, pm, 0) != 0) break;
+  \c       long long s = p + pm[0].rm_so;
+  \c       if (s > pos) break;
+  \c       result = s;
+  \c       p = s + 1;
+  \c     }
+  \c   }
+  \c   timeout_end(&old_sa, &old_tv);
+  \c   return result;
+  \c }
   \c long long re_match_at(char *text, int len, int pos) {
   \c   if (!re_anchor || re_broken) return 0;
   \c   if (pos >= len) return 0;
@@ -135,6 +170,7 @@ c-library regex-c
   \c }
   c-function re-compile re_compile a n n -- n
   c-function re-find-next re_find_next a n n -- n
+  c-function re-find-prev re_find_prev a n n -- n
   c-function re-match-at re_match_at a n n -- n
   \c void *re_anchor_compile(char *pat, int len, int icase) {
   \c   /* for highlighting: compile an anchored ^(...) regex, return the pointer (stored in the rule); return NULL on failure.
