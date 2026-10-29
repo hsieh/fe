@@ -2048,7 +2048,7 @@ variable insert-mode-xt  ' insert-mode-choice insert-mode-xt !
 defer fname-display                        \ ( -- addr len ) display name (the lsp layer may override it to be relative to the project root)
 : fname-display-default ( -- addr len )
   fname @ 0= if s" [no name]" exit then
-  fname @ flen @ ;
+  fname @ flen @ home-shorten ;
 ' fname-display-default is fname-display
 
 variable ft-a 0 ft-a !
@@ -2713,7 +2713,7 @@ include lsp.fs
       then
     then
   then
-  a u ;
+  a u home-shorten ;
 ' fname-display-rel is fname-display
 
 \ completion-source dispatch: use LSP when it is on, otherwise scan buffer words
