@@ -1133,6 +1133,11 @@ create lp-prompt 4 allot
 : lp-set-title ( a u -- )  31 min lp-title-len !  lp-title lp-title-len @ move ;
 
 \ filter flist: rows matching the pbuf substring go into lp-starts/lp-lens
+\ should this match be inserted? (not full, or full but the new score beats the current lowest)
+: lp-insert? ( -- f )
+  lp-nmatches @ max-lp < if true exit then
+  fz-total @  lp-scores max-lp 1- cells + @  > ;
+
 : lp-filter
   0 lp-nmatches !
   0 lp-i !
@@ -1152,7 +1157,8 @@ create lp-prompt 4 allot
         flist @ lp-s @ + lp-l @  pbuf pbuflen @  fuzzy-match?
       then
       if
-        lp-nmatches @ max-lp < if
+        lp-insert? if
+          lp-nmatches @ max-lp >= if  max-lp 1- lp-nmatches !  then   \ full: drop the lowest before inserting
           \ insert by descending score (fzf-style: best matches first)
           lp-nmatches @ lp-pos !
           begin lp-pos @ 0>  fz-total @  lp-scores lp-pos @ 1- cells + @  >  and while
@@ -1319,7 +1325,7 @@ variable fbu-n  0 fbu-n !
 variable fbu-i  0 fbu-i !
 create fbu-buf 12 allot
 : fb-ud-nl ( n -- )
-  fbu-n !
+  0 max fbu-n !
   0 fbu-i !
   begin
     fbu-n @ 10 mod 48 +  fbu-buf fbu-i @ + c!

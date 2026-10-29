@@ -228,7 +228,8 @@ variable pnrows 0 pnrows !
 : fb-reset  0 fblen !  0 nrows ! ;
 : fb-c ( c -- )  fb @ fblen @ + c!  1 fblen +! ;
 : fb-str { addr len -- }  addr fb @ fblen @ + len move  len fblen +! ;
-: fb-ud. { n -- }                              \ append an unsigned decimal
+: fb-ud. ( n -- )                              \ append an unsigned decimal (negative clamps to 0; no locals 'to' — recurse + to corrupts the frame)
+  0 max { n }
   n 10 >= if n 10 / recurse then
   n 10 mod 48 + fb-c ;
 \ append a cursor position (\e[row;colH; row/col 0-based)
@@ -317,6 +318,9 @@ variable wc-n 0 wc-n !
   repeat
   drop false ;
 
+variable panel-xt             \ ( i -- ) the i-th picker row above the status line; 0 = none
+variable panel-rows           \ picker row count (the buffer render yields this many rows)
+
 : update-screen-size
   term-cols 16 max 2000 min  scr-cols !              \ clamp: avoid negative/overflow
   term-rows 3 max 1-  max-rows 2 - min  scr-rows !   \ otherwise nrows>256 would write past rowcur/rowprev
@@ -326,7 +330,9 @@ variable wc-n 0 wc-n !
     0 pnrows !                                       \ shadow frame invalidated -> full redraw
   then
   scr-rows @ sc-old-rows !  scr-cols @ sc-old-cols !
-  layout-windows ;
+  layout-windows
+  panel-rows @  scr-rows @ 1-  min  panel-rows !   \ shrink: clamp a stale panel-rows to the new screen (otherwise lp-row computes a negative row)
+  ;
 
 \ digit count (at least 1)
 : ndigits { n }  1 begin n 10 >= while n 10 / to n 1+ repeat ;
@@ -583,8 +589,6 @@ variable cursor-place-xt       \ ( -- flag )     true = the cursor has already b
 variable buffer-enter-xt       \ ( -- )  called after buffer-switch changes buffers (0 = none)
 variable key-pre-xt           \ ( c -- ) called before each key dispatch (for observation/recording; 0 = none)
 variable last-key  0 last-key !   \ the key currently being dispatched (custom's generic prefix enter uses it to look up key→mode)
-variable panel-xt             \ ( i -- ) the i-th picker row above the status line; 0 = none
-variable panel-rows           \ picker row count (the buffer render yields this many rows)
 variable panel-attr  <A Blue >BG White >FG Bold A> panel-attr !   \ selected row (fzf cursor row)
 variable match-attr  <A Green >FG A> match-attr !               \ matched-character highlight (fzf hl: green)
 variable match-sel-attr  <A Blue >BG Green >FG Bold A> match-sel-attr !  \ matched characters on the selected row (fzf hl+: bold green on blue)
