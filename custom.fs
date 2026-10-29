@@ -95,16 +95,16 @@ variable prompt-accept-xt  0 prompt-accept-xt !
 variable prompting  0 prompting !
 variable prompt-prefix  0 prompt-prefix !
 variable prompt-prefix-len  0 prompt-prefix-len !
-create pbuf 256 allot
+1024 constant /pbuf                \ minibuffer line capacity (single-line input)
+create pbuf /pbuf allot
 variable pbuflen  0 pbuflen !
 variable pbpos    0 pbpos !
 
-: pb-add { c }  pbuflen @ 255 < if  c pbuf pbuflen @ + c!  1 pbuflen +!  then ;
+: pb-add { c }  pbuflen @ /pbuf 1- < if  c pbuf pbuflen @ + c!  1 pbuflen +!  else #bell emit then ;
 : pb-back  0 pbuflen @ 0> if  -1 pbuflen +!  then ;
 : pb-add-cp { cp }  cp ['] pb-add utf8-emit ;
 
 \ prompt-mode commands/defaults (installed into mode-prompt)
-: prompt-input { c -- }  c 32 >= if c pb-add-cp  pbuflen @ pbpos ! then ;
 : cmd-prompt-cancel  0 prompting !  mode-pop ;
 : cmd-prompt-accept  0 prompting !  mode-pop  prompt-accept-xt @ ?dup if execute then ;
 : cmd-prompt-back    pb-back ;
@@ -1613,12 +1613,12 @@ variable lp-emit-c 0 lp-emit-c !
 \ ===== C-o input cursor + readline-style editing =====
 variable lp-kw-p 0 lp-kw-p !
 variable lp-kw-q 0 lp-kw-q !
-create lp-kill-buf 256 allot
+create lp-kill-buf /pbuf allot
 variable lp-kill-len 0 lp-kill-len !
 
 : pb-ins ( c -- )
   tmp-c !
-  pbuflen @ 255 < if
+  pbuflen @ /pbuf 1- < if
     pbuflen @ lp-kw-p !
     begin lp-kw-p @ pbpos @ > while
       lp-kw-p @ 1- pbuf + c@  lp-kw-p @ pbuf + c!
@@ -1626,9 +1626,13 @@ variable lp-kill-len 0 lp-kill-len !
     repeat
     tmp-c @ pbuf pbpos @ + c!
     1 pbuflen +!  1 pbpos +!
-  then ;
+  else #bell emit then ;
 
 : pb-ins-cp { cp }  cp ['] pb-ins utf8-emit ;
+
+\ prompt-mode char input: insert at the cursor (pbpos), readline-consistent
+\ with lp-home/lp-left/pb-backspace (defined here because it needs pb-ins-cp)
+: prompt-input { c -- }  c 32 >= if c pb-ins-cp  then ;
 
 : pb-del-at
   pbpos @ pbuflen @ < if
@@ -1687,7 +1691,7 @@ variable lp-kill-len 0 lp-kill-len !
   then ;
 
 : lp-yank
-  lp-kill-len @ 0>  pbuflen @ lp-kill-len @ + 255 <  and if
+  lp-kill-len @ 0>  pbuflen @ lp-kill-len @ + /pbuf 1- <  and if
     pbuf pbpos @ lp-kill-len @ + +  pbuf pbpos @ +  pbuflen @ pbpos @ -  move
     lp-kill-buf  pbuf pbpos @ +  lp-kill-len @  move
     lp-kill-len @ pbuflen +!
@@ -1733,7 +1737,7 @@ variable lp-kill-len 0 lp-kill-len !
   then ;
 
 : pb-yank
-  lp-kill-len @ 0>  pbuflen @ lp-kill-len @ + 255 <  and if
+  lp-kill-len @ 0>  pbuflen @ lp-kill-len @ + /pbuf 1- <  and if
     pbuf pbpos @ lp-kill-len @ + +  pbuf pbpos @ +  pbuflen @ pbpos @ -  move
     lp-kill-buf  pbuf pbpos @ +  lp-kill-len @  move
     lp-kill-len @ pbuflen +!
@@ -1858,12 +1862,13 @@ variable path-complete-xt  ' path-tab-complete path-complete-xt !
   gctx @ B:NEXT + @ ?dup if buffer-switch exit then
   buffers-first @ ?dup if buffer-switch then ;
 
-: cur-line-into { dst }        \ copy the current-line text into dst, return the length
+: cur-line-into { dst max }    \ copy the current-line text into dst (clamped to max bytes), return the copied length
   cursor @ offset->linecol drop { line }
   line line-start { ls }
   line line-length { ll }
-  ll 0 ?do  ls i + g-char-at  dst i + c!  loop
-  ll ;
+  ll max min { n }
+  n 0 ?do  ls i + g-char-at  dst i + c!  loop
+  n ;
 
 variable buffers-buf  0 buffers-buf !      \ the *buffers* list buffer (set by list-buffers)
 
@@ -1893,7 +1898,7 @@ variable buffers-buf  0 buffers-buf !      \ the *buffers* list buffer (set by l
   list-buffers-rebuild ;
 
 : buffer-list-select                  \ the buffer corresponding to the current-line name
-  pbuf cur-line-into { n }
+  pbuf /pbuf 1- cur-line-into { n }
   n 0> if  pbuf n buffer-find ?dup if buffer-switch then  then ;
 
 \ ===== jump-history ctx data (defined early: buffer-close-now needs to invalidate dangling entries)=====
@@ -1962,7 +1967,7 @@ variable close-armed  0 close-armed !      \ the modified buffer awaiting close 
 
 \ inside the *buffers* list: close the buffer of the current line (auto-refresh the list after closing, keep the cursor on the original line)
 : buffer-list-close
-  pbuf cur-line-into { n }
+  pbuf /pbuf 1- cur-line-into { n }
   n 0> if
     pbuf n buffer-find ?dup if
       cursor @ offset->linecol drop { line }

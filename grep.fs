@@ -198,8 +198,8 @@ variable gq-fi 0 gq-fi !
 \ on dump/sync: escape the query + precompile + store into the buffer-scope table (free the old pointer)
 : grep-q-save ( -- )
   0 lang-buf !                     \ make the next ensure-language re-run set-language (rebuild the match rules)
-  pbuflen @ grep-qlen !
-  pbuf grep-q pbuflen @ move
+  pbuflen @ 255 min grep-qlen !      \ grep-q is 256: clamp the saved (highlight/jump) query
+  pbuf grep-q grep-qlen @ move
   0 gq-relen !  0 gq-i !
   begin gq-i @ grep-qlen @ < while
     grep-q gq-i @ + c@ gq-cbuf c!
