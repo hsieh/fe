@@ -12,11 +12,12 @@ It pairs that with a familiar, complete editing experience: **vi-style modal edi
 
 ## Why fe?
 
-Three design choices set it apart:
+Four design choices set it apart:
 
 1. **Forth-native, not just Forth-themed.** The editor *is* a live Forth system. From the embedded REPL you can call the editor's internal words and variables directly, and `:` define new commands on the fly — not a C program with a Forth skin on top.
 2. **A familiar, complete daily driver.** vi-style modal editing, LSP, live grep, fuzzy file/buffer pickers, multiple windows, undo/redo, and keyboard macros. You don't give up ordinary editor capabilities to use Forth.
 3. **The editor itself is modifiable on the fly.** Configuration, command definitions, key bindings, and the extension mechanism are all Forth — they are the core of the project, not an implementation detail. Edit `~/.fe`, then press `Ctrl-x` to reload.
+4. **A small, deliberate core — everything is customizable.** `fe` intentionally does not ship an all-in-one feature set, because nothing is hard-wired: key bindings, commands, modes, the status line, and syntax highlighting are all redefinable live. Define new commands with `:`, rebind keys, drop them into `~/.fe` (or `./.fe.fs`), and press `Ctrl-x` to reload — no restart, no recompiling. Your extensions run in the same live Forth system as the editor itself.
 
 - Depends on **Gforth 1.0** (0.7.9 may also work) plus a C compiler (only needed on first run to compile the termios/width bindings; afterwards the result is cached).
 - live grep needs one of `rg`, `git`, or `grep` (`rg` is preferred; if absent it falls back to `git grep` → `grep`).
