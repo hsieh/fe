@@ -416,5 +416,5 @@ variable pcomp-pos -1 pcomp-pos !   \ pbpos after the last completion (to detect
   gctx @ repl-buf @ = if g-size cursor ! mode-repl mode-set
   else cur-mode @ mode-repl = if mode-command mode-set then then ;
 : repl-insert-mode
-  gctx @ repl-buf @ = if g-size cursor ! mode-repl else mode-insert then ;
+  gctx @ repl-buf @ = if mode-repl else mode-insert then ;
 ' repl-insert-mode insert-mode-xt !
