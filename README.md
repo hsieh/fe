@@ -66,6 +66,9 @@ sudo make install
 cd forth                # the directory containing fe.fs
 ./fe                    # start (fe is a symlink to fe.fs; fe.fs is a dual shell/gforth script)
 ./fe a.c b.txt          # open multiple files (stops on the first)
+./fe -e '4 tab-width !' a.c   # evaluate Forth at startup (after ~/.fe; then open a.c)
+./fe -e 'bye'            # evaluate and exit without entering the editor
+./fe -n                  # skip loading ~/.fe and ./.fe.fs
 
 # or directly:
 ./fe.fs a.c

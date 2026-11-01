@@ -2,7 +2,7 @@
 : ## ; 0 [if]
 # fe - minimal Forth editor (embedded same-process Forth REPL)
 # deps: gforth 1.0 (0.7.9 may also work); first run needs a C compiler (libcc compiles termios bindings, then cached)
-# usage: fe [file...]  (or via symlink: ln -s ~/local/fe/fe.fs ~/bin/fe)
+# usage: fe [-e code]... [-n] [file...]  (or via symlink: ln -s ~/local/fe/fe.fs ~/bin/fe)
 # dual interpretation: shell runs first (resolve symlink + locate dir + pick gforth-fast + exec self),
 # then Gforth re-reads the same file; the hash-bang line is a comment alias, and the
 # conditional-skip pair below makes Gforth ignore the shell part.
@@ -1540,6 +1540,53 @@ is ?warning
 
 
 \ ===== entry point =====
+\ -e 支持：收集 -e 代码（argv 字符串指针，进程生命周期内有效），配置加载后统一求值
+16 constant max-fe-evals
+create fe-evals-a max-fe-evals cells allot
+create fe-evals-l max-fe-evals cells allot
+variable nfe-evals   0 nfe-evals !
+variable fe-has-file 0 fe-has-file !
+variable fe-first-gctx 0 fe-first-gctx !
+variable fe-i 0 fe-i !
+variable fe-ev-sp 0 fe-ev-sp !
+variable fe-no-config 0 fe-no-config !
+
+\ 当前 next-arg 是 "-e"：取下一条参数作为 Forth 代码并收集
+: fe-arg-e ( -- )
+  next-arg  2dup d0= if  2drop  s" -e needs an argument" msg-log  exit  then
+  nfe-evals @ max-fe-evals < if
+    over  fe-evals-a nfe-evals @ cells + !
+          fe-evals-l nfe-evals @ cells + !
+    1 nfe-evals +!
+  else  2drop  s" too many -e arguments" msg-log  then ;
+
+\ 处理命令行参数：-e 收集代码，-n 不加载配置，其余按文件打开（记住第一个文件）
+: fe-args ( -- )
+  0 nfe-evals !  0 fe-has-file !  0 fe-no-config !
+  begin
+    next-arg  2dup d0= 0= while
+      2dup s" -e" compare 0= if  2drop  fe-arg-e
+      else
+        2dup s" -n" compare 0= if  2drop  1 fe-no-config !
+        else
+          buffer-open
+          fe-has-file @ 0= if  gctx @ fe-first-gctx !  1 fe-has-file !  then
+        then
+      then
+  repeat
+  2drop
+  fe-has-file @ if  fe-first-gctx @ buffer-switch  then ;
+
+\ 求值一段 -e 代码：异常只报 *messages* 不崩；求值后恢复数据栈
+: fe-eval ( -- )
+  sp@ fe-ev-sp !
+  fe-evals-a fe-i @ cells + @  fe-evals-l fe-i @ cells + @
+  ['] evaluate catch ?dup if  error$ msg-log  then
+  fe-ev-sp @ sp! ;
+
+: fe-eval-all ( -- )
+  nfe-evals @ 0 ?do  i fe-i !  fe-eval  loop ;
+
 : fe
   s" *scratch*" BF_NOFILE buffer-new buffer-switch
   s" *messages*" BF_NOFILE BF_READONLY or buffer-new  messages-buf !
@@ -1553,19 +1600,15 @@ is ?warning
   s" start-warn" tmp-file delete-file throw
   s" rt-warn" tmp-file w/o create-file throw rt-warn-fid !
   rt-warn-fid @ TO debug-fid
-  next-arg dup if                        \ open all files from the command-line arguments
-    buffer-open
-    gctx @                               \ remember the first (staged on the stack)
-    begin  next-arg dup  while  buffer-open  repeat  2drop
-    buffer-switch                        \ back to the first
-  else 2drop then
+  fe-args                                \ -e 收集代码 + 打开文件（记住第一个文件）
   6 s" C.UTF-8" setlocale drop     \ force the UTF-8 locale so wcwidth returns 2 for CJK
   6 s" en_US.UTF-8" setlocale drop
   key? drop           \ warm-up: let Gforth's ekey save the "normal" terminal state first (otherwise it would restore raw on exit)
+  fe-no-config @ 0= if  load-layers-xt  then    \ load ~/.fe + ./.fe.fs (skip with -n); before raw-mode so -e can use it (and -e 'bye' exits cleanly)
+  fe-eval-all           \ evaluate -e code: after config, before raw-mode
   raw-mode
   mouse-off           \ turn off mouse tracking possibly left on by the environment (otherwise moving the mouse floods the screen)
   s" fe" set-term-title  \ terminal/tmux window title defaults to fe
-  load-layers-xt        \ load ~/.fe + ./.fe.fs at runtime (not frozen into a save-image)
   0 quit-flag !
   begin
     ['] editor-loop catch

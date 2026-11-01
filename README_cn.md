@@ -65,6 +65,9 @@ sudo make install
 cd forth                # fe.fs 所在目录
 ./fe                    # 启动（fe 是 fe.fs 的符号链接；fe.fs 是 shell/gforth 双重解释脚本）
 ./fe a.c b.txt          # 打开多个文件（停在第一个）
+./fe -e '4 tab-width !' a.c   # 启动时求值 Forth（在 ~/.fe 之后；然后打开 a.c）
+./fe -e 'bye'            # 求值后直接退出，不进编辑器
+./fe -n                  # 不加载 ~/.fe 和 ./.fe.fs
 
 # 也可以直接：
 ./fe.fs a.c
