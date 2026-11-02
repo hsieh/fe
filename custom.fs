@@ -2266,8 +2266,14 @@ variable vis-ck-lw     -1 vis-ck-lw !
 : vis-lo ( -- n )  vis-bounds drop ;
 : vis-hi ( -- n )  vis-bounds nip ;
 
+variable avy-active 0 avy-active !        \ 1=avy 标签已显示（提前定义：mst-cmd/showcmd$ 需要）
+variable avy-second 0 avy-second !         \ 1=等待双字符标签第二键
+variable avy-filtering 0 avy-filtering !   \ 1=avy 筛选阶段
+
 \ status label for command mode: show VISUAL / VISUAL LINE while a selection is active
-: mst-cmd  visual @ if  vis-linewise @ if s" VISUAL LINE" else s" VISUAL" then  else s" NORMAL" then ;
+: mst-cmd  avy-active @ if  avy-second @ if s" AVY2" else s" AVY" then
+  else  visual @ if  vis-linewise @ if s" VISUAL LINE" else s" VISUAL" then  else  s" NORMAL" then
+  then ;
 
 \ copy the bytes of [lo,hi) into the register
 : yank-range { lo hi -- }
@@ -3614,6 +3620,7 @@ variable theme-cur 0 theme-cur !   \ 0=dark 1=mono
 \ showcmd: op mode shows d/y; prefixes show g/^W (the right end of the statusline)
 create leader-showbuf 4 allot
 : showcmd$ ( -- addr len )
+  avy-active @ if  avy-second @ if s" AVY2" else s" AVY" then  exit  then
   cur-mode @ mode-op = if
     op-kind @ OP-DELETE = if s" d" else  op-kind @ OP-CHANGE = if s" c" else s" y" then  then exit
   then
@@ -3711,6 +3718,252 @@ variable fmt-clen 0 fmt-clen !
   -1 saved-urp !        \ content differs from disk; the next save resets it to urp
   1 modified !
   s" formatted" msg! ;
+
+\ ===== avy / easymotion 式跳转（Phase 1: 跳可见行）=====
+1638 constant max-avy
+create avy-lines max-avy cells allot
+variable navy 0 navy !
+variable avy-saved-gutter 0 avy-saved-gutter !
+variable avy-saved-gutter-w 0 avy-saved-gutter-w !
+variable avy-line 0 avy-line !
+variable avy-last 0 avy-last !
+variable avy-idx 0 avy-idx !
+
+\ 标签字符：0-25→a-z 26-51→A-Z 52-61→0-9（纯算术，无 hold 区）
+: avy-label ( idx -- c )
+  dup 26 < if 97 + exit then
+  dup 52 < if 39 + exit then
+  4 - ;
+
+\ 收集活动窗口可见行行首偏移
+: avy-collect ( -- )
+  0 navy !
+  top-line @ avy-line !
+  top-line @ win-text-rows + 1-  g-nlines 1-  min  avy-last !
+  begin
+    avy-line @ avy-last @ <=
+  while
+    avy-line @ line-start  navy @ cells avy-lines + !
+    1 navy +!  1 avy-line +!
+  repeat ;
+
+\ 取消：还原钩子 + 全量重绘
+: avy-cancel ( -- )
+  0 avy-active !
+  0 avy-filtering !
+  0 avy-second !
+  avy-saved-gutter @ ?dup if  gutter-xt !  then
+  avy-saved-gutter-w @ ?dup if  gutter-w-xt !  then
+  0 em-label-xt !
+  0 key-inter-xt !
+  0 pnrows ! ;
+
+: avy-preview ( idx -- )
+  avy-lines swap cells + @ cursor ! ;
+: avy-jump ( idx -- )
+  avy-preview
+  avy-cancel ;
+
+\ 标签 gutter：活动窗口的候选行画高亮标签，其余画空格/原行号
+: avy-gutter ( line sub -- )
+  { line sub }
+  avy-active @ win-render-active @ and if
+    sub 0= if
+      gutter-w @ 0= if exit then
+      line top-line @ -  dup 0>= over navy @ < and if
+        match-sel-attr @ style>fb  avy-label fb-c  0 style>fb
+        gutter-w @ 1- 0 ?do 32 fb-c loop
+      else  drop  gutter-w @ 0 ?do 32 fb-c loop  then
+    else  gutter-w @ 0 ?do 32 fb-c loop  then
+  else  line sub gutter-colored  then ;
+
+\ 按键拦截：命中跳转；ESC/Ctrl-c 取消；其它响铃继续等
+: avy-key { c -- f }
+  c 27 = if  avy-cancel  true exit  then
+  c 3  = if  avy-cancel  true exit  then
+  0 avy-idx !
+  begin  avy-idx @ navy @ < while
+    avy-idx @ avy-label  c = if  avy-idx @ avy-jump  true exit  then
+    1 avy-idx +!
+  repeat
+  #bell emit  true ;
+
+\ ===== 双字符标签（goto-char / goto-word 用；前缀无关：a-z 单字符 + A-Z+62 双字符）=====
+create avy-lb 2 allot
+variable avy-first 0 avy-first !
+
+\ 62 字母表
+: avy-ch ( i -- c )
+  dup 26 < if 97 + exit then
+  dup 52 < if 39 + exit then
+  4 - ;
+\ 反查：字符 → 下标（-1 = 不在字母表）
+: avy-ch-idx ( c -- idx|-1 )
+  dup 97 >= over 122 <= and if  97 - exit  then
+  dup 65 >= over 90 <= and if  39 - exit  then
+  dup 48 >= over 57 <= and if  4 + exit  then
+  drop -1 ;
+\ 标签字符串：0-25 单字符 a-z；26+ 双字符（A-Z + 62 字母表）
+: avy-label-str ( idx -- addr len )
+  dup 26 < if
+    dup 97 + avy-lb c!  drop  avy-lb 1 exit
+  then
+  dup 26 - 62 / 65 +  avy-lb c!
+  dup 26 - 62 mod avy-ch  avy-lb 1+ c!
+  drop  avy-lb 2 ;
+
+\ 双字符标签第二键（定义在 avy-key-c 之前，避免前向引用）
+: avy-key-c2 { c -- f }
+  c 27 = if  avy-cancel  true exit  then
+  c 3  = if  avy-cancel  true exit  then
+  c avy-ch-idx  dup 0< if  drop  #bell emit  true exit  then
+  avy-first @ + { idx }
+  idx navy @ < if  idx avy-jump  else  #bell emit  true  then ;
+
+\ goto-char/word 标签键：a-z 单字符；A-Z 双字符首键；ESC/Ctrl-c 取消
+: avy-key-c { c -- f }
+  c 27 = if  avy-cancel  true exit  then
+  c 3  = if  avy-cancel  true exit  then
+  c 97 >= c 122 <= and if
+    c 97 -  dup navy @ < if  avy-jump  else  drop #bell emit  then  true exit
+  then
+  c 65 >= c 90 <= and if
+    c 65 - 62 * 26 + { base }
+    base navy @ < if
+      base avy-first !
+      1 avy-second !
+      base avy-preview          \ 预览跳到该前缀第一个候选
+      ['] avy-key-c2 key-inter-xt !
+      true exit
+    then
+  then
+  #bell emit  true ;
+
+\ 强制显示一个窄行号栏（标签需要它，即使行号已关）
+: avy-gutter-w ( base -- w )  drop 2 ;
+
+: avy-goto-line ( -- )
+  mode-pop
+  avy-collect
+  navy @ 0= if  #bell emit  exit  then
+  1 avy-active !
+  ['] gutter-colored avy-saved-gutter !
+  gutter-w-xt @ avy-saved-gutter-w !
+  ['] avy-gutter gutter-xt !
+  ['] avy-gutter-w gutter-w-xt !
+  ['] avy-key key-inter-xt !
+  0 pnrows ! ;
+
+\ ===== Phase 2: 跳转到视口内目标字符 =====
+variable avy-c 0 avy-c !
+variable avy-overflow 0 avy-overflow !
+variable avy-off 0 avy-off !
+variable avy-hi 0 avy-hi !
+variable em-lo 0 em-lo !
+variable em-hi 0 em-hi !
+variable em-mid 0 em-mid !
+variable em-off 0 em-off !
+
+\ 收集字符 c 在视口内的所有出现位置（ASCII，按偏移升序，上限 256）
+: avy-char-collect ( c -- )
+  avy-c !  0 navy !  0 avy-overflow !
+  top-line @ line-start avy-off !
+  top-line @ win-text-rows + 1-  g-nlines 1-  min { l }
+  l line-start  l line-length +  avy-hi !
+  begin
+    avy-off @ avy-hi @ <
+  while
+    avy-off @ g-char-at  avy-c @ = if
+      navy @ max-avy < if
+        avy-off @  navy @ cells avy-lines + !
+        1 navy +!
+      else
+        1 avy-overflow !
+      then
+    then
+    1 avy-off +!
+  repeat ;
+
+\ offset（avy-off @）处是 ASCII 词首吗（当前是词字符且前一个不是，或文件首）
+: avy-word-start? ( -- f )
+  avy-off @ g-char-at search-word-char? if
+    avy-off @ 0= if  true exit  then
+    avy-off @ u8-prev g-char-at search-word-char? 0=
+  else  false  then ;
+
+\ 收集视口内所有 ASCII 词首位置（上限 256）
+: avy-word-collect ( -- )
+  0 navy !  0 avy-overflow !
+  top-line @ line-start avy-off !
+  top-line @ win-text-rows + 1-  g-nlines 1-  min { l }
+  l line-start  l line-length +  avy-hi !
+  begin
+    avy-off @ avy-hi @ <
+  while
+    avy-word-start? if
+      navy @ max-avy < if
+        avy-off @  navy @ cells avy-lines + !
+        1 navy +!
+      else
+        1 avy-overflow !
+      then
+    then
+    1 avy-off +!
+  repeat ;
+
+\ ( offset -- labeladdr labellen attr | 0 0 0 ) 二分查 offset 是否候选（渲染热路径，无 locals）
+: em-label-lookup ( offset -- labeladdr labellen width bytelen attr | 0 0 0 0 0 )
+  em-off !
+  0 em-lo !  navy @ em-hi !
+  begin  em-lo @ em-hi @ < while
+    em-lo @ em-hi @ + 2/ em-mid !
+    em-mid @ cells avy-lines + @  em-off @ < if
+      em-mid @ 1+ em-lo !
+    else
+      em-mid @ em-hi !
+    then
+  repeat
+  em-lo @ navy @ <  em-lo @ cells avy-lines + @ em-off @ =  and if
+    em-lo @ avy-label-str       \ ( addr len )
+    em-off @ 0 u8-wl            \ ( addr len width bytelen )
+    match-sel-attr @            \ ( addr len width bytelen attr )
+  else
+    0 0 0 0 0
+  then ;
+
+\ 读目标字符：收集出现位置并标号；ESC/Ctrl-c 取消
+: avy-char-read { c -- f }
+  c 27 = if  avy-cancel  true exit  then
+  c 3  = if  avy-cancel  true exit  then
+  c 32 < if  #bell emit  true exit  then
+  c 126 > if  #bell emit  true exit  then
+  c avy-char-collect
+  navy @ 0= if  #bell emit  true exit  then
+  avy-overflow @ if  s" >1638 matches" msg!  then
+  1 avy-active !
+  0 avy-saved-gutter !  0 avy-saved-gutter-w !
+  ['] em-label-lookup em-label-xt !
+  ['] avy-key-c key-inter-xt !
+  0 pnrows !
+  true ;
+
+\ 进入字符跳转模式：先读目标字符
+: avy-goto-char ( -- )
+  mode-pop
+  0 avy-saved-gutter !  0 avy-saved-gutter-w !
+  ['] avy-char-read key-inter-xt ! ;
+
+\ 单步词首跳转：立即标号
+: avy-goto-word ( -- )
+  mode-pop
+  avy-word-collect
+  navy @ 0= if  #bell emit  exit  then
+  avy-overflow @ if  s" >1638 matches" msg!  then
+  1 avy-active !
+  0 avy-saved-gutter !  0 avy-saved-gutter-w !
+  ['] em-label-lookup em-label-xt !
+  ['] avy-key-c key-inter-xt !
+  0 pnrows ! ;
 
 : init-keymaps
   keymap-base    /keymap cells erase      \ clear (allot is not initialized; reload also resets here)
@@ -3837,6 +4090,9 @@ variable fmt-clen 0 fmt-clen !
   [char] r ['] cmd-gr  pmode-g @ bind-mode
   [char] i ['] cmd-gi  pmode-g @ bind-mode
   [char] s ['] cmd-gs  pmode-g @ bind-mode
+  [char] l ['] avy-goto-line pmode-g @ bind-mode
+  [char] c ['] avy-goto-char pmode-g @ bind-mode
+  [char] w ['] avy-goto-word pmode-g @ bind-mode
   \ prefix z: scrolling (zz center / zt top / zb bottom)
   [char] z ['] cmd-zz  pmode-z @ bind-mode
   [char] t ['] cmd-zt  pmode-z @ bind-mode

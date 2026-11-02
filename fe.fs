@@ -585,6 +585,7 @@ variable minibuf-xt          \ ( -- )           global minibuffer (multiple wind
 variable showcmd-xt         \ ( -- addr len )  showcmd string (0 0 = none); core right-aligns it
 variable ws-w       0 ws-w !   \ content display width filled by win-status-xt (core uses it to pad spaces)
 variable hl-xt                 \ ( a -- hlend attr ) end offset + style of the highlight segment at a (a 0 if none)
+variable em-label-xt  0 em-label-xt !   \ ( offset -- labelchar attr | 0 0 ) in-text label hook (avy goto-char); 0 = none
 variable cursor-place-xt       \ ( -- flag )     true = the cursor has already been positioned
 variable buffer-enter-xt       \ ( -- )  called after buffer-switch changes buffers (0 = none)
 variable key-pre-xt           \ ( c -- ) called before each key dispatch (for observation/recording; 0 = none)
@@ -759,6 +760,13 @@ variable rs-c 0 rs-c !
     then
     a hlend < if  hlattr  else  0  then { eff }   \ effective style (0 outside the region)
     eff curattr <> if  eff style>fb  eff to curattr  then
+    \ in-text label (avy goto-char/goto-word): replace the candidate char with its label
+    em-label-xt @ ?dup if  a swap execute  else  0 0 0 0 0  then { lba lln lcw lcn lca }
+    lln if
+      lca curattr <> if  lca style>fb  lca to curattr  then
+      lba lln fb-str
+      dcol lln lcw max + to dcol   b lcn + to b
+    else
     loff b + dcol u8-wl { cw cn }
     dcol dcol0 - 0>  dcol dcol0 - cw + text-cols @ >  and if
       curattr if 0 style>fb then  b dcol exit
@@ -771,6 +779,7 @@ variable rs-c 0 rs-c !
     then
     dcol cw + to dcol
     b cn + to b
+    then
   repeat
   curattr if 0 style>fb then
   b dcol ;
