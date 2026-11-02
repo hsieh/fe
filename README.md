@@ -12,6 +12,8 @@ It pairs that with a familiar, complete editing experience: **vi-style modal edi
 
 ## Why fe?
 
+> **“less is less, more is more”**
+
 Four design choices set it apart:
 
 1. **Forth-native, not just Forth-themed.** The editor *is* a live Forth system. From the embedded REPL you can call the editor's internal words and variables directly, and `:` define new commands on the fly — not a C program with a Forth skin on top.
