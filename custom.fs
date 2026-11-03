@@ -3725,7 +3725,7 @@ variable fmt-clen 0 fmt-clen !
   s" formatted" msg! ;
 
 \ ===== avy / easymotion 式跳转（Phase 1: 跳可见行）=====
-1638 constant max-avy
+1612 constant max-avy
 create avy-lines max-avy cells allot
 variable navy 0 navy !
 variable avy-saved-gutter 0 avy-saved-gutter !
@@ -3809,39 +3809,46 @@ variable avy-first 0 avy-first !
   dup 65 >= over 90 <= and if  39 - exit  then
   dup 48 >= over 57 <= and if  4 + exit  then
   drop -1 ;
-\ 标签字符串：0-25 单字符 a-z；26+ 双字符（A-Z + 62 字母表）
+\ 第二字符表：只用 a-z（26），保证 aa..zz 先填满再引入 A-Z/0-9
+: avy26 ( i -- c )  97 + ;
+: avy26-idx ( c -- idx|-1 )
+  dup 97 >= over 122 <= and if  97 - else  drop -1 then ;
+\ 标签字符串：候选 ≤26 单字符 a-z；否则 2 字符（首字符 avy-ch(idx/26)，第二字符 a-z）
+\ 顺序：aa..az, ba..bz, … za..zz（全小写 676）→ Aa..Zz → 0a..9z
 : avy-label-str ( idx -- addr len )
-  dup 26 < if
+  navy @ 26 <= if
     dup 97 + avy-lb c!  drop  avy-lb 1 exit
   then
-  dup 26 - 62 / 65 +  avy-lb c!
-  dup 26 - 62 mod avy-ch  avy-lb 1+ c!
-  drop  avy-lb 2 ;
+  dup 26 / avy-ch  avy-lb c!
+  26 mod avy26  avy-lb 1+ c!
+  avy-lb 2 ;
 
-\ 双字符标签第二键（定义在 avy-key-c 之前，避免前向引用）
+\ 双字符标签第二键（第二字符只能 a-z）
 : avy-key-c2 { c -- f }
   c 27 = if  avy-cancel  true exit  then
   c 3  = if  avy-cancel  true exit  then
-  c avy-ch-idx  dup 0< if  drop  #bell emit  true exit  then
+  c avy26-idx  dup 0< if  drop  #bell emit  true exit  then
   avy-first @ + { idx }
   idx navy @ < if  idx avy-jump  else  #bell emit  true  then ;
 
-\ goto-char/word 标签键：a-z 单字符；A-Z 双字符首键；ESC/Ctrl-c 取消
+\ goto-char/word 标签键：候选 ≤26 单字符 a-z 直跳；>26 时固定 2 字符（第一键 = 前缀）
 : avy-key-c { c -- f }
   c 27 = if  avy-cancel  true exit  then
   c 3  = if  avy-cancel  true exit  then
-  c 97 >= c 122 <= and if
-    c 97 -  dup navy @ < if  avy-jump  else  drop #bell emit  then  true exit
+  navy @ 26 <= if
+    c 97 >= c 122 <= and if
+      c 97 -  dup navy @ < if  avy-jump  else  drop #bell emit  then
+    else  #bell emit  then
+    true exit
   then
-  c 65 >= c 90 <= and if
-    c 65 - 62 * 26 + { base }
-    base navy @ < if
-      base avy-first !
-      1 avy-second !
-      base avy-preview          \ 预览跳到该前缀第一个候选
-      ['] avy-key-c2 key-inter-xt !
-      true exit
-    then
+  c avy-ch-idx  dup 0< if  drop  #bell emit  true exit  then
+  26 * { base }
+  base navy @ < if
+    base avy-first !
+    1 avy-second !
+    base avy-preview          \ 预览跳到该前缀第一个候选
+    ['] avy-key-c2 key-inter-xt !
+    true exit
   then
   #bell emit  true ;
 
@@ -3945,7 +3952,7 @@ variable em-off 0 em-off !
   c 126 > if  #bell emit  true exit  then
   c avy-char-collect
   navy @ 0= if  #bell emit  true exit  then
-  avy-overflow @ if  s" >1638 matches" msg!  then
+  avy-overflow @ if  s" >1612 matches" msg!  then
   0 avy-char !
   1 avy-active !
   0 avy-saved-gutter !  0 avy-saved-gutter-w !
@@ -3966,7 +3973,7 @@ variable em-off 0 em-off !
   mode-pop
   avy-word-collect
   navy @ 0= if  #bell emit  exit  then
-  avy-overflow @ if  s" >1638 matches" msg!  then
+  avy-overflow @ if  s" >1612 matches" msg!  then
   1 avy-active !
   0 avy-saved-gutter !  0 avy-saved-gutter-w !
   ['] em-label-lookup em-label-xt !
