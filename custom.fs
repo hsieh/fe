@@ -2268,12 +2268,17 @@ variable vis-ck-lw     -1 vis-ck-lw !
 
 variable avy-active 0 avy-active !        \ 1=avy 标签已显示（提前定义：mst-cmd/showcmd$ 需要）
 variable avy-second 0 avy-second !         \ 1=等待双字符标签第二键
+variable avy-char 0 avy-char !             \ 1=gc 等待输入目标字符
 variable avy-filtering 0 avy-filtering !   \ 1=avy 筛选阶段
 
+\ 当前 avy 状态串（showcmd 用；0 0 = 非 avy 态）
+: avy-status$ ( -- a u | 0 0 )
+  avy-char   @ if  s" AVY?"  exit  then
+  avy-active @ if  avy-second @ if s" AVY2" else s" AVY" then  exit  then
+  0 0 ;
+
 \ status label for command mode: show VISUAL / VISUAL LINE while a selection is active
-: mst-cmd  avy-active @ if  avy-second @ if s" AVY2" else s" AVY" then
-  else  visual @ if  vis-linewise @ if s" VISUAL LINE" else s" VISUAL" then  else  s" NORMAL" then
-  then ;
+: mst-cmd  visual @ if  vis-linewise @ if s" VISUAL LINE" else s" VISUAL" then  else  s" NORMAL" then ;
 
 \ copy the bytes of [lo,hi) into the register
 : yank-range { lo hi -- }
@@ -3620,7 +3625,7 @@ variable theme-cur 0 theme-cur !   \ 0=dark 1=mono
 \ showcmd: op mode shows d/y; prefixes show g/^W (the right end of the statusline)
 create leader-showbuf 4 allot
 : showcmd$ ( -- addr len )
-  avy-active @ if  avy-second @ if s" AVY2" else s" AVY" then  exit  then
+  avy-status$  ?dup if  exit  then  2drop
   cur-mode @ mode-op = if
     op-kind @ OP-DELETE = if s" d" else  op-kind @ OP-CHANGE = if s" c" else s" y" then  then exit
   then
@@ -3752,6 +3757,7 @@ variable avy-idx 0 avy-idx !
   0 avy-active !
   0 avy-filtering !
   0 avy-second !
+  0 avy-char !
   avy-saved-gutter @ ?dup if  gutter-xt !  then
   avy-saved-gutter-w @ ?dup if  gutter-w-xt !  then
   0 em-label-xt !
@@ -3940,6 +3946,7 @@ variable em-off 0 em-off !
   c avy-char-collect
   navy @ 0= if  #bell emit  true exit  then
   avy-overflow @ if  s" >1638 matches" msg!  then
+  0 avy-char !
   1 avy-active !
   0 avy-saved-gutter !  0 avy-saved-gutter-w !
   ['] em-label-lookup em-label-xt !
@@ -3951,6 +3958,7 @@ variable em-off 0 em-off !
 : avy-goto-char ( -- )
   mode-pop
   0 avy-saved-gutter !  0 avy-saved-gutter-w !
+  0 avy-active !  0 avy-second !  1 avy-char !
   ['] avy-char-read key-inter-xt ! ;
 
 \ 单步词首跳转：立即标号
