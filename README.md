@@ -21,6 +21,16 @@ Four design choices set it apart:
 3. **The editor itself is modifiable on the fly.** Configuration, command definitions, key bindings, and the extension mechanism are all Forth — they are the core of the project, not an implementation detail. Edit `~/.fe`, then press `Ctrl-x` to reload.
 4. **A small, deliberate core — everything is customizable.** `fe` intentionally does not ship an all-in-one feature set, because nothing is hard-wired: key bindings, commands, modes, the status line, and syntax highlighting are all redefinable live. Define new commands with `:`, rebind keys, drop them into `~/.fe` (or `./.fe.fs`), and press `Ctrl-x` to reload — no restart, no recompiling. Your extensions run in the same live Forth system as the editor itself.
 
+### Handmade style
+
+The code is written in the handmade style, in the small:
+
+- **No hidden allocation.** Most state lives in fixed `create … allot` buffers; buffers that grow (`snap`, `hlmap`, `lstate`, LSP buffers) are allocated once and reused. `allocate`/`free` appears only at explicit lifecycle boundaries — reading a file, tearing down a buffer.
+- **Data-driven, not object-heavy.** Modes and keymaps are plain key-indexed tables; field offsets come from a `fld:` defining word; extension points are a handful of `defer` words and xt variables.
+- **One script, no build system.** The editor is a single `.fs` file (plus small focused modules) interpreted by Gforth at startup — no Makefile, no generated code.
+
+You can read the whole editor end to end — and change it while it runs.
+
 - Depends on **Gforth 1.0** (0.7.9 may also work) plus a C compiler (only needed on first run to compile the termios/width bindings; afterwards the result is cached).
 - live grep needs one of `rg`, `git`, or `grep` (`rg` is preferred; if absent it falls back to `git grep` → `grep`).
 - macOS / Linux only, ANSI / xterm terminals.

@@ -1664,52 +1664,7 @@ variable lp-kill-len 0 lp-kill-len !
 : lp-delete  pb-del-at  lp-refresh ;
 : lp-clear  0 pbuflen !  0 pbpos !  lp-refresh ;
 
-: lp-kill-end
-  pbuflen @ pbpos @ > if
-    pbuf pbpos @ +  lp-kill-buf  pbuflen @ pbpos @ -  move
-    pbuflen @ pbpos @ - lp-kill-len !
-    pbpos @ pbuflen !
-    lp-refresh
-  then ;
-
-: lp-kill-start
-  pbpos @ 0> if
-    pbuf  lp-kill-buf  pbpos @  move
-    pbpos @ lp-kill-len !
-    pbuf  pbuf pbpos @ +  pbuflen @ pbpos @ -  move
-    pbuflen @ pbpos @ - pbuflen !
-    0 pbpos !
-    lp-refresh
-  then ;
-
-: lp-kill-word
-  pbpos @ lp-kw-p !
-  begin lp-kw-p @ 0>  pbuf lp-kw-p @ 1- + c@ 32 =  and while  -1 lp-kw-p +!  repeat
-  begin lp-kw-p @ 0>  pbuf lp-kw-p @ 1- + c@ 32 <>  and while  -1 lp-kw-p +!  repeat
-  lp-kw-p @ lp-kw-q !
-  pbpos @ lp-kw-q @ > if
-    pbuf lp-kw-q @ +  lp-kill-buf  pbpos @ lp-kw-q @ -  move
-    pbpos @ lp-kw-q @ - lp-kill-len !
-    pbuf lp-kw-q @ +  pbuf pbpos @ +  pbuflen @ pbpos @ -  move
-    pbuflen @ pbpos @ lp-kw-q @ - - pbuflen !
-    lp-kw-q @ pbpos !
-    lp-refresh
-  then ;
-
-: lp-yank
-  lp-kill-len @ 0>  pbuflen @ lp-kill-len @ + /pbuf 1- <  and if
-    pbuf pbpos @ lp-kill-len @ + +  pbuf pbpos @ +  pbuflen @ pbpos @ -  move
-    lp-kill-buf  pbuf pbpos @ +  lp-kill-len @  move
-    lp-kill-len @ pbuflen +!
-    lp-kill-len @ pbpos +!
-    lp-refresh
-  then ;
-
-\ ===== readline editing words for the prompt (reuse pbuf/pbpos/lp-kill-*; do not use lp-refresh, to avoid lp-filter scanning stale flist)=====
-: pb-delete  pb-del-at  0 pnrows ! ;
-: pb-backspace  pbpos @ 0> if  lp-left  pb-del-at  0 pnrows !  then ;   \ delete before the cursor (readline-consistent; no-op at the line start)
-: pb-clear  0 pbuflen !  0 pbpos !  0 pnrows ! ;
-
+\ kill ops: pb-* = base (no re-filter), lp-* = pb-* + lp-refresh
 : pb-kill-end
   pbuflen @ pbpos @ > if
     pbuf pbpos @ +  lp-kill-buf  pbuflen @ pbpos @ -  move
@@ -1750,6 +1705,16 @@ variable lp-kill-len 0 lp-kill-len !
     lp-kill-len @ pbpos +!
     0 pnrows !
   then ;
+
+: lp-kill-end   pb-kill-end   lp-refresh ;
+: lp-kill-start pb-kill-start lp-refresh ;
+: lp-kill-word  pb-kill-word  lp-refresh ;
+: lp-yank       pb-yank       lp-refresh ;
+
+\ ===== readline editing words for the prompt (reuse pbuf/pbpos/lp-kill-*; do not use lp-refresh, to avoid lp-filter scanning stale flist)=====
+: pb-delete  pb-del-at  0 pnrows ! ;
+: pb-backspace  pbpos @ 0> if  lp-left  pb-del-at  0 pnrows !  then ;   \ delete before the cursor (readline-consistent; no-op at the line start)
+: pb-clear  0 pbuflen !  0 pbpos !  0 pnrows ! ;
 
 : lp-backspace  lp-left  pb-del-at  lp-refresh ;
 : lp-up    lp-sel @ 0> if -1 lp-sel +!  lp-update  then ;
@@ -2335,10 +2300,12 @@ include repl.fs
 \ no locals in the highlight deep chain (a known project pitfall: locals frames corrupt the return stack) — all globals.
 \ bracket pair character: 0 for a non-bracket   ( c -- peer|0 )
 : bracket-peer
-  dup 40 = if drop 41 exit then   dup 41 = if drop 40 exit then
-  dup 91 = if drop 93 exit then   dup 93 = if drop 91 exit then
-  dup 123 = if drop 125 exit then  dup 125 = if drop 123 exit then
-  drop 0 ;
+  case
+    40 of 41 endof   41 of 40 endof
+    91 of 93 endof   93 of 91 endof
+    123 of 125 endof 125 of 123 endof
+    drop 0 0         \ non-bracket: 0; the trailing 0 is consumed by endcase
+  endcase ;
 
 \ bracket direction: 1=open -1=close 0=non-bracket   ( c -- n )
 : bracket-dir
@@ -2888,15 +2855,17 @@ variable mw-w 0 mw-w !
 
 \ kind -> single-character icon
 : cm-kind-ic ( kind -- c )
-  dup 3 = if drop [char] f exit then    \ Function
-  dup 6 = if drop [char] m exit then    \ Method
-  dup 4 = if drop [char] v exit then    \ Variable
-  dup 5 = if drop [char] f exit then    \ Field
-  dup 9 = if drop [char] p exit then    \ Module
-  dup 21 = if drop [char] c exit then   \ Constant
-  dup 22 = if drop [char] k exit then   \ Keyword
-  dup 12 = if drop [char] v exit then   \ Value
-  drop 32 ;
+  case
+    3  of [char] f endof    \ Function
+    6  of [char] m endof    \ Method
+    4  of [char] v endof    \ Variable
+    5  of [char] f endof    \ Field
+    9  of [char] p endof    \ Module
+    21 of [char] c endof    \ Constant
+    22 of [char] k endof    \ Keyword
+    12 of [char] v endof    \ Value
+    drop 32 0              \ default: space; the trailing 0 is consumed by endcase
+  endcase ;
 
 \ draw overlay row i (the overlay-xt callback; float=overlay / push=insert)
 : cm-draw ( i -- )
@@ -2967,16 +2936,18 @@ $10000000 constant cm-shift
 
 \ key handling (the key-inter-xt callback): handle menu keys; other keys close the menu and go to the keymap
 : cm-key ( c -- f )
-  dup 14 = if drop cm-down true exit then    \ Ctrl-n (char n ctrl-code = 14; the key-ctrl-n constant is defined later)
-  dup 16 = if drop cm-up true exit then      \ Ctrl-p（char p ctrl-code = 16）
-  dup K-UP = if drop cm-up true exit then            \ ↑
-  dup K-DOWN = if drop cm-down true exit then        \ ↓
-  dup 9 = if drop cm-next true exit then             \ Tab next item (circular)
-  dup 9 cm-shift or = if drop cm-prev true exit then \ Shift-Tab previous item (circular)
-  dup 13 = if drop cm-accept true exit then          \ Enter accept
-  dup 27 = if drop cm-cancel true exit then          \ ESC cancel
-  dup 3 = if drop cm-cancel true exit then           \ Ctrl-c cancel
-  drop cm-cancel false ;
+  case
+    14 of cm-down true endof              \ Ctrl-n
+    16 of cm-up true endof                \ Ctrl-p
+    K-UP of cm-up true endof              \ ↑
+    K-DOWN of cm-down true endof          \ ↓
+    9 of cm-next true endof               \ Tab next item (circular)
+    9 cm-shift or of cm-prev true endof   \ Shift-Tab previous item (circular)
+    13 of cm-accept true endof            \ Enter accept
+    27 of cm-cancel true endof            \ ESC cancel
+    3 of cm-cancel true endof             \ Ctrl-c cancel
+    drop cm-cancel false 0                \ default: cancel; the trailing 0 is consumed by endcase
+  endcase ;
 
 \ menu box width: icon+space+longest-candidate display width+detail; clamped to the text area, right edge flush (fzf/company style)
 : cm-calc-width ( -- )
@@ -3735,7 +3706,7 @@ variable avy-last 0 avy-last !
 variable avy-idx 0 avy-idx !
 
 \ 标签字符：0-25→a-z 26-51→A-Z 52-61→0-9（纯算术，无 hold 区）
-: avy-label ( idx -- c )
+: avy-ch ( i -- c )
   dup 26 < if 97 + exit then
   dup 52 < if 39 + exit then
   4 - ;
@@ -3777,7 +3748,7 @@ variable avy-idx 0 avy-idx !
     sub 0= if
       gutter-w @ 0= if exit then
       line top-line @ -  dup 0>= over navy @ < and if
-        match-sel-attr @ style>fb  avy-label fb-c  0 style>fb
+        match-sel-attr @ style>fb  avy-ch fb-c  0 style>fb
         gutter-w @ 1- 0 ?do 32 fb-c loop
       else  drop  gutter-w @ 0 ?do 32 fb-c loop  then
     else  gutter-w @ 0 ?do 32 fb-c loop  then
@@ -3789,7 +3760,7 @@ variable avy-idx 0 avy-idx !
   c 3  = if  avy-cancel  true exit  then
   0 avy-idx !
   begin  avy-idx @ navy @ < while
-    avy-idx @ avy-label  c = if  avy-idx @ avy-jump  true exit  then
+    avy-idx @ avy-ch  c = if  avy-idx @ avy-jump  true exit  then
     1 avy-idx +!
   repeat
   #bell emit  true ;
@@ -3799,10 +3770,6 @@ create avy-lb 2 allot
 variable avy-first 0 avy-first !
 
 \ 62 字母表
-: avy-ch ( i -- c )
-  dup 26 < if 97 + exit then
-  dup 52 < if 39 + exit then
-  4 - ;
 \ 反查：字符 → 下标（-1 = 不在字母表）
 : avy-ch-idx ( c -- idx|-1 )
   dup 97 >= over 122 <= and if  97 - exit  then
@@ -3980,7 +3947,7 @@ variable em-off 0 em-off !
   ['] avy-key-c key-inter-xt !
   0 pnrows ! ;
 
-: init-keymaps
+: keymap-erase ( -- )
   keymap-base    /keymap cells erase      \ clear (allot is not initialized; reload also resets here)
   keymap-search  /keymap cells erase
   keymap-prompt  /keymap cells erase
@@ -3998,8 +3965,9 @@ variable em-off 0 em-off !
   s" g" register-prefix pmode-g !
   s" z" register-prefix pmode-z !
   s" w" register-prefix pmode-w !
-  s" leader" register-prefix pmode-leader !
-  \ --- base mode (the common parent of command/insert; only keys shared by both) ---
+  s" leader" register-prefix pmode-leader ! ;
+
+: bind-base-mode ( -- ) \ base mode (the common parent of command/insert; only keys shared by both)
   keymap-base base-mode m-keymap !
   0 base-mode m-parent !  0 base-mode m-input !
   0 base-mode m-enter  !  0 base-mode m-leave !
@@ -4024,8 +3992,9 @@ variable em-off 0 em-off !
   key-ctrl-n ['] cmd-toggle-linenr  bind-base   \ Ctrl-n cycle the line-number mode
   key-ctrl-p ['] cmd-linenr-reset   bind-base   \ Ctrl-p undo the override, back to the live linenr-default
   key-ctrl-e ['] cmd-scroll-down    bind-base   \ Ctrl-e scroll the viewport down (vim)
-  key-ctrl-y ['] cmd-scroll-up      bind-base   \ Ctrl-y scroll the viewport up (vim)
-  \ --- command mode: parent = base mode ---
+  key-ctrl-y ['] cmd-scroll-up      bind-base ; \ Ctrl-y scroll the viewport up (vim)
+
+: bind-command-mode ( -- ) \ command mode: parent = base mode
   keymap-command mode-command m-keymap !
   base-mode mode-command m-parent !
   0 mode-command m-input !  0 mode-command m-enter !  0 mode-command m-leave !
@@ -4094,8 +4063,9 @@ variable em-off 0 em-off !
   [char] Q   ['] cmd-macro-toggle  bind-command    \ Q record/stop a macro
   [char] @   ['] cmd-macro-play    bind-command    \ @ replay a macro
   92          ['] grep-live         bind-command    \ \ live grep
-  #cr         ['] grep-jump-at-cursor bind-command   \ Enter in the *grep* buffer jumps (other buffers ring the bell)
-  \ prefix mode g: the second-key table (gg = start of file); unmatched keys cancel
+  #cr         ['] grep-jump-at-cursor bind-command ; \ Enter in the *grep* buffer jumps (other buffers ring the bell)
+
+: bind-prefix-modes ( -- ) \ prefix mode g: the second-key table (gg = start of file); unmatched keys cancel
   \ prefix-keymap bindings (the mode field is already initialized by register-prefix)
   [char] g ['] cmd-gg  pmode-g @ bind-mode
   [char] * ['] cmd-gstar pmode-g @ bind-mode
@@ -4121,9 +4091,10 @@ variable em-off 0 em-off !
   [char] j ['] cmd-win-focus-j    pmode-w @ bind-mode
   [char] k ['] cmd-win-focus-k    pmode-w @ bind-mode
   [char] l ['] cmd-win-focus-l    pmode-w @ bind-mode
-  key-ctrl-w ['] cmd-win-focus-next pmode-w @ bind-mode
+  key-ctrl-w ['] cmd-win-focus-next pmode-w @ bind-mode ;
   \ leader: the keymap bindings are added by the config layer via bind-leader (empty by default)
-  \ operator-pending mode d/y + motion (the unified op-motion table: unmatched keys look it up)
+
+: bind-op-mode ( -- ) \ operator-pending mode d/y + motion (the unified op-motion table: unmatched keys look it up)
   keymap-op mode-op m-keymap !
   0 mode-op m-parent !  0 mode-op m-enter !  0 mode-op m-leave !
   ['] op-default mode-op m-input !
@@ -4144,8 +4115,9 @@ variable em-off 0 em-off !
   [char] $ 4 ['] op-dollar      op-motion-register
   [char] G 3 ['] fe-file-end    op-motion-register
   [char] j 3 ['] fe-down        op-motion-register
-  [char] k 3 ['] fe-up          op-motion-register
-  \ --- insert mode: parent = base mode; unmatched keys default to ins-default ---
+  [char] k 3 ['] fe-up          op-motion-register ;
+
+: bind-insert-mode ( -- ) \ insert mode: parent = base mode; unmatched keys default to ins-default
   keymap-insert mode-insert m-keymap !
   base-mode mode-insert m-parent !
   0 mode-insert m-enter !  0 mode-insert m-leave !
@@ -4156,9 +4128,9 @@ variable em-off 0 em-off !
   #esc     ['] cmd-esc-ins      bind-insert   \ ESC back to command mode
   #bs      ['] fe-backspace     bind-insert   \ Backspace
   #del     ['] fe-backspace     bind-insert   \ DEL
-  #cr      ['] fe-insert-newline bind-insert  \ Enter
-  
-  \ --- search mode (modal, no parent; unmatched keys append to pat) ---
+  #cr      ['] fe-insert-newline bind-insert ; \ Enter
+
+: bind-search-mode ( -- ) \ search mode (modal, no parent; unmatched keys append to pat)
   keymap-search mode-search m-keymap !
   0 mode-search m-parent !
   ['] search-enter mode-search m-enter !
@@ -4170,8 +4142,9 @@ variable em-off 0 em-off !
   key-ctrl-c ['] cmd-search-cancel mode-search bind-mode
   #cr        ['] cmd-search-accept mode-search bind-mode
   #bs        ['] cmd-search-bs     mode-search bind-mode
-  #del       ['] cmd-search-bs     mode-search bind-mode
-  \ --- prompt mode (modal, no parent; unmatched keys append to pbuf) ---
+  #del       ['] cmd-search-bs     mode-search bind-mode ;
+
+: bind-prompt-mode ( -- ) \ prompt mode (modal, no parent; unmatched keys append to pbuf)
   keymap-prompt mode-prompt m-keymap !
   0 mode-prompt m-parent !
   ['] prompt-enter mode-prompt m-enter !
@@ -4195,8 +4168,9 @@ variable em-off 0 em-off !
   key-ctrl-u ['] pb-kill-start mode-prompt bind-mode
   key-ctrl-w ['] pb-kill-word  mode-prompt bind-mode
   key-ctrl-y ['] pb-yank       mode-prompt bind-mode
-  key-ctrl-l ['] pb-clear      mode-prompt bind-mode
-  \ --- list-picker mode (generic: file/buffer filtering) ---
+  key-ctrl-l ['] pb-clear      mode-prompt bind-mode ;
+
+: bind-listpanel-mode ( -- ) \ list-picker mode (generic: file/buffer filtering)
   keymap-listpanel mode-listpanel m-keymap !
   0 mode-listpanel m-parent !
   ['] lp-input mode-listpanel m-input !
@@ -4225,8 +4199,9 @@ variable em-off 0 em-off !
   key-ctrl-l ['] lp-clear      mode-listpanel bind-mode
   K-DELETE ['] lp-close mode-listpanel bind-mode
   key-ctrl-g ['] lp-dump  mode-listpanel bind-mode   \ live grep: dump to *grep*
-  key-ctrl-j ['] lp-create mode-listpanel bind-mode   \ open-or-create the exact typed path (file picker only)
-  \ --- query-replace mode (qemacs style, single-key confirmation) ---
+  key-ctrl-j ['] lp-create mode-listpanel bind-mode ; \ open-or-create the exact typed path (file picker only)
+
+: bind-qrep-mode ( -- ) \ query-replace mode (qemacs style, single-key confirmation)
   keymap-qrep mode-qrep m-keymap !
   0 mode-qrep m-parent !
   0 mode-qrep m-enter !  0 mode-qrep m-leave !
@@ -4240,8 +4215,9 @@ variable em-off 0 em-off !
   [char] q ['] qrep-quit   mode-qrep bind-mode
   #cr      ['] qrep-quit   mode-qrep bind-mode
   #esc     ['] qrep-quit   mode-qrep bind-mode
-  key-ctrl-g ['] qrep-abort mode-qrep bind-mode
-  \ --- REPL mode (type Forth directly; Enter evaluates, Backspace deletes, ESC returns to command) ---
+  key-ctrl-g ['] qrep-abort mode-qrep bind-mode ;
+
+: bind-repl-mode ( -- ) \ REPL mode (type Forth directly; Enter evaluates, Backspace deletes, ESC returns to command)
   keymap-repl mode-repl m-keymap !
   0 mode-repl m-parent !
   ['] ins-default mode-repl m-input !
@@ -4254,8 +4230,9 @@ variable em-off 0 em-off !
   #del ['] fe-backspace   mode-repl bind-mode
   K-UP   ['] repl-hist-up   mode-repl bind-mode
   K-DOWN ['] repl-hist-down mode-repl bind-mode
-  #tab   ['] repl-complete  mode-repl bind-mode
-\ install the render hooks (reinstalled on reload)
+  #tab   ['] repl-complete  mode-repl bind-mode ;
+
+: render-hooks-install ( -- ) \ install the render hooks (reinstalled on reload)
   ['] fb-status     status-line-xt !
   ['] fb-win-status win-status-xt !
   ['] fb-minibuf    minibuf-xt !
@@ -4266,7 +4243,21 @@ variable em-off 0 em-off !
   ['] cursor-place  cursor-place-xt !
   ['] buffer-enter-all buffer-enter-xt !
   ['] macro-record-key key-pre-xt !        \ keyboard-macro recording hook
-  s" *repl*" buffer-find repl-buf !     \ re-associate the *repl* buffer after reload
+  s" *repl*" buffer-find repl-buf ! ;   \ re-associate the *repl* buffer after reload
+
+: init-keymaps ( -- )
+  keymap-erase
+  bind-base-mode
+  bind-command-mode
+  bind-prefix-modes
+  bind-op-mode
+  bind-insert-mode
+  bind-search-mode
+  bind-prompt-mode
+  bind-listpanel-mode
+  bind-qrep-mode
+  bind-repl-mode
+  render-hooks-install
   mode-command mode-set ;
 
 \ takes effect on load; reload re-includes this file and runs this again to rebuild the keymap
