@@ -3796,7 +3796,8 @@ variable avy-first 0 avy-first !
   c 3  = if  avy-cancel  true exit  then
   c avy26-idx  dup 0< if  drop  #bell emit  true exit  then
   avy-first @ + { idx }
-  idx navy @ < if  idx avy-jump  else  #bell emit  true  then ;
+  idx navy @ < if  idx avy-jump  else  #bell emit  then
+  true ;
 
 \ goto-char/word 标签键：候选 ≤26 单字符 a-z 直跳；>26 时固定 2 字符（第一键 = 前缀）
 : avy-key-c { c -- f }
