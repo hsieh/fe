@@ -1,7 +1,7 @@
-\ ===== test/harness.fs — 单元测试基础设施 =====
-\ 依赖 Gforth 的 assert.fs；被测模块只 include 纯逻辑层（state/gapbuf/utf8/regex/search），
-\ 不碰终端（rawmode）、不碰 libcc 的 termios、不进入 fe 主循环。
-\ 用法：cd 项目根 && gforth-fast test/run-all.fs
+\ ===== test/harness.fs — unit-test infrastructure =====
+\ depends on Gforth's assert.fs; the modules under test only include the pure-logic layer (state/gapbuf/utf8/regex/search),
+\ no terminal (rawmode), no libcc termios, and never enter the fe main loop.
+\ usage: cd project-root && gforth-fast test/run-all.fs
 
 require assert.fs
 
@@ -10,11 +10,11 @@ include ../gapbuf.fs
 include ../regex.fs
 include ../search.fs
 
-\ tab-width 在 fe.fs 定义；utf8.fs 的 u8-wl 需要，测试里单独提供
+\ tab-width is defined in fe.fs; utf8.fs's u8-wl needs it, so the tests provide it separately
 variable tab-width  8 tab-width !
 
-\ 测试 buffer：分配一个 /buf 大小的独立 gctx + 一个 /win 的 wctx（不经过 fe 的多 buffer 机制），
-\ 字段清零 + g-init，足够 gapbuf/utf8/search/undo 使用。
+\ test buffer: allocate a standalone gctx of /buf bytes + a wctx of /win bytes (bypassing fe's multi-buffer machinery),
+\ zero the fields + g-init; enough for gapbuf/utf8/search/undo.
 : tb-init ( -- )
   /buf allocate throw gctx !
   gctx @ /buf erase
@@ -22,7 +22,7 @@ variable tab-width  8 tab-width !
   wctx @ /win erase
   1024 g-init ;
 
-\ 重建测试 buffer 并插入内容 (a u)（置 loading? 避免记 edit-dirty）
+\ rebuild the test buffer and insert content (a u) (set loading? to avoid recording edit-dirty)
 : tb-set ( a u -- )
   tb-init
   0 g-move-gap
@@ -30,6 +30,6 @@ variable tab-width  8 tab-width !
   g-insert
   0 loading? ! ;
 
-\ 简单测试计数器（assert 失败即 abort，这里只计数通过项用于输出）
+\ simple test counter (a failed assert aborts; here we only count passes for the output)
 variable t-n  0 t-n !
 : t-ok  1 t-n +! ;

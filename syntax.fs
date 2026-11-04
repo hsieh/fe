@@ -245,6 +245,7 @@ variable trg-mlen 0 trg-mlen !
   rcur @ 1 rule@ ?dup if  c@ 94 = if  si @ 0<> if false exit then  then  then
   rcur @ 3 rule@ ?dup 0= if false exit then
   trg-rp !
+  sls @ slw @ +  g-size >  sls @ si @ +  g-size >  or if  false exit  then   \ guard: stale line offsets must not reach regexec
   snap-build
   trg-rp @  snap @  sls @ slw @ +  sls @ si @ +  re-ptr-match   \ len = end of the current line; limit the match range to this line
   trg-mlen !

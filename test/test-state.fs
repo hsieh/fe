@@ -1,6 +1,6 @@
-\ ===== test/test-state.fs — 字段偏移契约 =====
-\ state.fs 用 fld: 自动计算偏移，B:*/W:* 是常量（偏移值）。
-\ B:NAME 的大小由 path-max（FE_PATH_MAX）决定，其后的偏移随之移动，这里按 path-max 计算。
+\ ===== test/test-state.fs — field-offset contract =====
+\ state.fs computes offsets with fld:; B:*/W:* are constants (offset values).
+\ B:NAME's size is decided by path-max (FE_PATH_MAX); later offsets shift with it, so compute them via path-max here.
 
 : test-state-buffer-fields
   assert( B:GBUF 0 = )
@@ -30,7 +30,7 @@
   assert( B:FNAME 192 = )
   assert( B:FLEN 200 = )
   assert( B:NAME 208 = )
-  \ B:NAME 大小可配（8 对齐）；其后的字段随 path-max 移动
+  \ B:NAME size is configurable (8-aligned); later fields shift with path-max
   assert( B:LEPOS  208 path-max @ 7 + -8 and +  = )
   assert( B:LEDELTA  B:LEPOS  8 + = )
   assert( B:LENL     B:LEPOS 16 + = )

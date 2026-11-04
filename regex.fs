@@ -187,8 +187,13 @@ c-library regex-c
   \c   if (!r || pos >= len) return 0;
   \c   regmatch_t pm[1];
   \c   pm[0].rm_so = 0; pm[0].rm_eo = len - pos;   /* limit the range to the current line to prevent cross-line matching */
-  \c   if (regexec(r, text+pos, 1, pm, REG_STARTEND) == 0) return pm[0].rm_eo;
-  \c   return 0;
+  \c   struct sigaction old_sa; struct itimerval old_tv;
+  \c   timeout_start(&old_sa, &old_tv);
+  \c   if (sigsetjmp(re_env, 1) != 0) { timeout_end(&old_sa, &old_tv); return 0; }
+  \c   long long result = 0;
+  \c   if (regexec(r, text+pos, 1, pm, REG_STARTEND) == 0) result = pm[0].rm_eo;
+  \c   timeout_end(&old_sa, &old_tv);
+  \c   return result;
   \c }
   \c void re_ptr_free(void *rp) { if (rp) { regfree((regex_t*)rp); free(rp); } }
   c-function re-anchor-compile re_anchor_compile a n n -- a

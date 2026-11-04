@@ -1968,11 +1968,11 @@ create leader-xts /keymap cells allot      \ the real xt per key (for the auto-p
   mode-pop
   last-key @ key-idx cells leader-xts + @ execute ;
 
-: bind-leader ( key xt -- )      \ auto-pop（先 mode-pop 再执行）
+: bind-leader ( key xt -- )      \ auto-pop (mode-pop first, then execute)
   over key-idx cells leader-xts + !
   ['] leader-exec  pmode-leader @ bind-mode ;
 
-: bind-leader-keep ( key xt -- ) \ 不 pop（直接绑定，现状）
+: bind-leader-keep ( key xt -- ) \ no pop (bind directly, current behavior)
   pmode-leader @ bind-mode ;
 \ window commands: mode-pop first (leave the prefix mode) then act, to avoid leaking the prefix mode into the old window
 : cmd-split-v        mode-pop split-v ;
@@ -2231,12 +2231,12 @@ variable vis-ck-lw     -1 vis-ck-lw !
 : vis-lo ( -- n )  vis-bounds drop ;
 : vis-hi ( -- n )  vis-bounds nip ;
 
-variable avy-active 0 avy-active !        \ 1=avy 标签已显示（提前定义：mst-cmd/showcmd$ 需要）
-variable avy-second 0 avy-second !         \ 1=等待双字符标签第二键
-variable avy-char 0 avy-char !             \ 1=gc 等待输入目标字符
-variable avy-filtering 0 avy-filtering !   \ 1=avy 筛选阶段
+variable avy-active 0 avy-active !        \ 1=avy labels are shown (defined early: mst-cmd/showcmd$ need it)
+variable avy-second 0 avy-second !         \ 1=waiting for the second key of a two-char label
+variable avy-char 0 avy-char !             \ 1=gc waiting for the target character
+variable avy-filtering 0 avy-filtering !   \ 1=avy filtering phase
 
-\ 当前 avy 状态串（showcmd 用；0 0 = 非 avy 态）
+\ current avy status string (showcmd uses it; 0 0 = not in an avy state)
 : avy-status$ ( -- a u | 0 0 )
   avy-char   @ if  s" AVY?"  exit  then
   avy-active @ if  avy-second @ if s" AVY2" else s" AVY" then  exit  then
@@ -3596,7 +3596,7 @@ variable theme-cur 0 theme-cur !   \ 0=dark 1=mono
 \ showcmd: op mode shows d/y; prefixes show g/^W (the right end of the statusline)
 create leader-showbuf 4 allot
 : showcmd$ ( -- addr len )
-  avy-status$  ?dup if  exit  then  2drop
+  avy-status$  ?dup if  exit  then  drop
   cur-mode @ mode-op = if
     op-kind @ OP-DELETE = if s" d" else  op-kind @ OP-CHANGE = if s" c" else s" y" then  then exit
   then
@@ -3695,7 +3695,7 @@ variable fmt-clen 0 fmt-clen !
   1 modified !
   s" formatted" msg! ;
 
-\ ===== avy / easymotion 式跳转（Phase 1: 跳可见行）=====
+\ ===== avy / easymotion-style jumps (Phase 1: jump to visible lines) =====
 1612 constant max-avy
 create avy-lines max-avy cells allot
 variable navy 0 navy !
@@ -3705,13 +3705,13 @@ variable avy-line 0 avy-line !
 variable avy-last 0 avy-last !
 variable avy-idx 0 avy-idx !
 
-\ 标签字符：0-25→a-z 26-51→A-Z 52-61→0-9（纯算术，无 hold 区）
+\ label char: 0-25→a-z 26-51→A-Z 52-61→0-9 (pure arithmetic, no hold area)
 : avy-ch ( i -- c )
   dup 26 < if 97 + exit then
   dup 52 < if 39 + exit then
   4 - ;
 
-\ 收集活动窗口可见行行首偏移
+\ collect the line-start offsets of the active window's visible lines
 : avy-collect ( -- )
   0 navy !
   top-line @ avy-line !
@@ -3723,7 +3723,7 @@ variable avy-idx 0 avy-idx !
     1 navy +!  1 avy-line +!
   repeat ;
 
-\ 取消：还原钩子 + 全量重绘
+\ cancel: restore hooks + full redraw
 : avy-cancel ( -- )
   0 avy-active !
   0 avy-filtering !
@@ -3741,7 +3741,7 @@ variable avy-idx 0 avy-idx !
   avy-preview
   avy-cancel ;
 
-\ 标签 gutter：活动窗口的候选行画高亮标签，其余画空格/原行号
+\ label gutter: highlight labels on the active window's candidate lines, spaces/original line numbers elsewhere
 : avy-gutter ( line sub -- )
   { line sub }
   avy-active @ win-render-active @ and if
@@ -3754,7 +3754,7 @@ variable avy-idx 0 avy-idx !
     else  gutter-w @ 0 ?do 32 fb-c loop  then
   else  line sub gutter-colored  then ;
 
-\ 按键拦截：命中跳转；ESC/Ctrl-c 取消；其它响铃继续等
+\ key interception: jump on a hit; ESC/Ctrl-c cancel; others ring the bell and keep waiting
 : avy-key { c -- f }
   c 27 = if  avy-cancel  true exit  then
   c 3  = if  avy-cancel  true exit  then
@@ -3765,23 +3765,23 @@ variable avy-idx 0 avy-idx !
   repeat
   #bell emit  true ;
 
-\ ===== 双字符标签（goto-char / goto-word 用；前缀无关：a-z 单字符 + A-Z+62 双字符）=====
+\ ===== two-char labels (goto-char / goto-word; prefix-agnostic: a-z single char + A-Z+62 two-char) =====
 create avy-lb 2 allot
 variable avy-first 0 avy-first !
 
-\ 62 字母表
-\ 反查：字符 → 下标（-1 = 不在字母表）
+\ 62-char alphabet
+\ reverse lookup: char → index (-1 = not in the alphabet)
 : avy-ch-idx ( c -- idx|-1 )
   dup 97 >= over 122 <= and if  97 - exit  then
   dup 65 >= over 90 <= and if  39 - exit  then
   dup 48 >= over 57 <= and if  4 + exit  then
   drop -1 ;
-\ 第二字符表：只用 a-z（26），保证 aa..zz 先填满再引入 A-Z/0-9
+\ second-char table: only a-z (26), so aa..zz fill first, then A-Z/0-9
 : avy26 ( i -- c )  97 + ;
 : avy26-idx ( c -- idx|-1 )
   dup 97 >= over 122 <= and if  97 - else  drop -1 then ;
-\ 标签字符串：候选 ≤26 单字符 a-z；否则 2 字符（首字符 avy-ch(idx/26)，第二字符 a-z）
-\ 顺序：aa..az, ba..bz, … za..zz（全小写 676）→ Aa..Zz → 0a..9z
+\ label string: ≤26 candidates → single a-z; otherwise 2 chars (first avy-ch(idx/26), second a-z)
+\ order: aa..az, ba..bz, … za..zz (all-lowercase 676) → Aa..Zz → 0a..9z
 : avy-label-str ( idx -- addr len )
   navy @ 26 <= if
     dup 97 + avy-lb c!  drop  avy-lb 1 exit
@@ -3790,7 +3790,7 @@ variable avy-first 0 avy-first !
   26 mod avy26  avy-lb 1+ c!
   avy-lb 2 ;
 
-\ 双字符标签第二键（第二字符只能 a-z）
+\ two-char label second key (second char must be a-z)
 : avy-key-c2 { c -- f }
   c 27 = if  avy-cancel  true exit  then
   c 3  = if  avy-cancel  true exit  then
@@ -3799,7 +3799,7 @@ variable avy-first 0 avy-first !
   idx navy @ < if  idx avy-jump  else  #bell emit  then
   true ;
 
-\ goto-char/word 标签键：候选 ≤26 单字符 a-z 直跳；>26 时固定 2 字符（第一键 = 前缀）
+\ goto-char/word label key: ≤26 candidates → single a-z direct jump; >26 → fixed 2 chars (first key = prefix)
 : avy-key-c { c -- f }
   c 27 = if  avy-cancel  true exit  then
   c 3  = if  avy-cancel  true exit  then
@@ -3814,14 +3814,16 @@ variable avy-first 0 avy-first !
   base navy @ < if
     base avy-first !
     1 avy-second !
-    base avy-preview          \ 预览跳到该前缀第一个候选
+    base avy-preview          \ preview: jump to this prefix's first candidate
     ['] avy-key-c2 key-inter-xt !
     true exit
   then
   #bell emit  true ;
 
-\ 强制显示一个窄行号栏（标签需要它，即使行号已关）
-: avy-gutter-w ( base -- w )  drop 2 ;
+\ force a narrow line-number gutter (labels need it even when line numbers are off) — active window only; others use the saved gutter-w-xt
+\ note: update-gutter runs before win-render-active is set, so use wctx=win-active here
+: avy-gutter-w ( base -- w )
+  wctx @ win-active @ = if  drop 2  else  avy-saved-gutter-w @ execute  then ;
 
 : avy-goto-line ( -- )
   mode-pop
@@ -3835,7 +3837,7 @@ variable avy-first 0 avy-first !
   ['] avy-key key-inter-xt !
   0 pnrows ! ;
 
-\ ===== Phase 2: 跳转到视口内目标字符 =====
+\ ===== Phase 2: jump to a target character in the viewport =====
 variable avy-c 0 avy-c !
 variable avy-overflow 0 avy-overflow !
 variable avy-off 0 avy-off !
@@ -3845,7 +3847,7 @@ variable em-hi 0 em-hi !
 variable em-mid 0 em-mid !
 variable em-off 0 em-off !
 
-\ 收集字符 c 在视口内的所有出现位置（ASCII，按偏移升序，上限 256）
+\ collect all occurrences of char c in the viewport (ASCII, ascending by offset, max 256)
 : avy-char-collect ( c -- )
   avy-c !  0 navy !  0 avy-overflow !
   top-line @ line-start avy-off !
@@ -3865,14 +3867,14 @@ variable em-off 0 em-off !
     1 avy-off +!
   repeat ;
 
-\ offset（avy-off @）处是 ASCII 词首吗（当前是词字符且前一个不是，或文件首）
+\ is offset (avy-off @) an ASCII word start (current is a word char and the previous is not, or start of file)
 : avy-word-start? ( -- f )
   avy-off @ g-char-at search-word-char? if
     avy-off @ 0= if  true exit  then
     avy-off @ u8-prev g-char-at search-word-char? 0=
   else  false  then ;
 
-\ 收集视口内所有 ASCII 词首位置（上限 256）
+\ collect all ASCII word-start positions in the viewport (max 256)
 : avy-word-collect ( -- )
   0 navy !  0 avy-overflow !
   top-line @ line-start avy-off !
@@ -3892,7 +3894,7 @@ variable em-off 0 em-off !
     1 avy-off +!
   repeat ;
 
-\ ( offset -- labeladdr labellen attr | 0 0 0 ) 二分查 offset 是否候选（渲染热路径，无 locals）
+\ ( offset -- labeladdr labellen attr | 0 0 0 ) binary-search whether offset is a candidate (render hot path, no locals)
 : em-label-lookup ( offset -- labeladdr labellen width bytelen attr | 0 0 0 0 0 )
   em-off !
   0 em-lo !  navy @ em-hi !
@@ -3912,7 +3914,7 @@ variable em-off 0 em-off !
     0 0 0 0 0
   then ;
 
-\ 读目标字符：收集出现位置并标号；ESC/Ctrl-c 取消
+\ read the target char: collect occurrences and label them; ESC/Ctrl-c cancel
 : avy-char-read { c -- f }
   c 27 = if  avy-cancel  true exit  then
   c 3  = if  avy-cancel  true exit  then
@@ -3929,14 +3931,14 @@ variable em-off 0 em-off !
   0 pnrows !
   true ;
 
-\ 进入字符跳转模式：先读目标字符
+\ enter char-jump mode: read the target char first
 : avy-goto-char ( -- )
   mode-pop
   0 avy-saved-gutter !  0 avy-saved-gutter-w !
   0 avy-active !  0 avy-second !  1 avy-char !
   ['] avy-char-read key-inter-xt ! ;
 
-\ 单步词首跳转：立即标号
+\ word-start jump: label immediately
 : avy-goto-word ( -- )
   mode-pop
   avy-word-collect

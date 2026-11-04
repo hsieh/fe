@@ -1,8 +1,8 @@
-\ ===== test/test-search.fs — 朴素搜索（匹配/方向/词边界/忽略大小写）=====
-\ 只测 search.fs 的朴素分支（regex-search=0），不碰 POSIX 正则。
-\ （regex.fs/search.fs 已在 harness 里 include）
+\ ===== test/test-search.fs — plain search (match/direction/word-boundary/ignore-case) =====
+\ only the plain branch of search.fs (regex-search=0) is tested; no POSIX regex.
+\ (regex.fs/search.fs are already included in harness.fs)
 
-\ 设置朴素 pattern
+\ set a plain pattern
 : ss-pat ( a u -- )
   0 patlen !  0 regex-search !  0 word-boundary !  0 ignorecase !
   { a u }
@@ -21,7 +21,7 @@
   s" foo" ss-pat
   assert( 0 search-fwd 0 = )
   assert( 1 search-fwd 8 = )
-  assert( 11 search-fwd -1 = )     \ 无更多
+  assert( 11 search-fwd -1 = )     \ no more
   assert( 11 search-back 8 = )
   assert( 3 search-back 0 = )
   assert( 0 search-back 0 = )
@@ -30,9 +30,9 @@
 : test-search-word-boundary
   s" foobar foo" tb-set
   s" foo" ss-pat
-  1 word-boundary !               \ 要求词边界
-  assert( 7 match-at? 10 = )      \ "foo"（第二个词）
-  assert( 0 match-at? 0 = )       \ "foobar" 的 foo：后边界是 'b'（词字符）→ 不匹配
+  1 word-boundary !               \ require a word boundary
+  assert( 7 match-at? 10 = )      \ "foo" (the second word)
+  assert( 0 match-at? 0 = )       \ "foobar"'s foo: the trailing boundary is 'b' (a word char) → no match
   assert( 7 search-fwd 7 = )
   t-ok ;
 

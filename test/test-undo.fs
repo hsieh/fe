@@ -1,16 +1,16 @@
-\ ===== test/test-undo.fs — undo/redo 操作日志 =====
-\ 依赖 gapbuf + undo.fs + 宿主 cursor/modified（经 harness 的 gctx/wctx）。
+\ ===== test/test-undo.fs — undo/redo operation log =====
+\ depends on gapbuf + undo.fs + host cursor/modified (via harness's gctx/wctx).
 
 include ../undo.fs
 
-\ 初始化带 undo 栈的测试 buffer
+\ initialize a test buffer with an undo stack
 : tb-init-undo ( -- )
   tb-init
   max-undorec 6 * cells allocate throw urecs ! ;
 
 create tu-buf 1 allot
 
-\ 模拟插入字符（记录 undo + 实际插入 + 光标前移）
+\ simulate inserting a char (record undo + actually insert + advance the cursor)
 : tu-insert-char ( c -- )
   dup  cursor @ swap urec-ins
   tu-buf c!
@@ -18,7 +18,7 @@ create tu-buf 1 allot
   tu-buf 1 g-insert
   1 cursor +! ;
 
-\ 模拟正向删除字符（记录 undo + 实际删除）
+\ simulate a forward delete of a char (record undo + actually delete)
 : tu-delete-char ( -- )
   cursor @ 1 urec-del-fwd
   cursor @ g-move-gap
@@ -30,7 +30,7 @@ create tu-buf 1 allot
   [char] b tu-insert-char
   assert( g-size 2 = )
   assert( cursor @ 2 = )
-  assert( unrec @ 1 = )              \ 连续同型合并成一组
+  assert( unrec @ 1 = )              \ consecutive same-kind edits merge into one group
   undo
   assert( g-size 0 = )
   assert( cursor @ 0 = )
@@ -42,33 +42,33 @@ create tu-buf 1 allot
 : test-undo-delete
   s" abc" tb-set
   max-undorec 6 * cells allocate throw urecs !
-  2 cursor !                         \ 光标在 'c' 前
-  tu-delete-char                     \ 删光标处 'c'
+  2 cursor !                         \ cursor before 'c'
+  tu-delete-char                     \ delete the 'c' at the cursor
   assert( g-size 2 = )
   undo
   assert( g-size 3 = )
   assert( 2 g-char-at [char] c = )
   t-ok ;
 
-\ u-broken 打断合并：光标移动后再插入 = 新一组
+\ u-broken breaks the merge: insert after a cursor move = a new group
 : test-undo-broken
   tb-init-undo
   [char] a tu-insert-char
-  u-broken                           \ 打断
+  u-broken                           \ break
   [char] b tu-insert-char
-  assert( unrec @ 2 = )              \ 两组
+  assert( unrec @ 2 = )              \ two groups
   undo
-  assert( g-size 1 = )               \ 只撤 b
+  assert( g-size 1 = )               \ only b undone
   assert( 0 g-char-at [char] a = )
   t-ok ;
 
-\ 满时丢最旧一条（插入超过 max-undorec 条后，最旧的被丢弃）
+\ when full, drop the oldest (after inserting more than max-undorec entries, the oldest is dropped)
 : test-undo-make-room
   tb-init-undo
   max-undorec 1+ 0 ?do
     [char] x tu-insert-char
-    u-broken                         \ 每条独立（不合并）
+    u-broken                         \ each entry independent (no merge)
   loop
-  assert( unrec @ max-undorec = )    \ 已满
+  assert( unrec @ max-undorec = )    \ full
   assert( g-size max-undorec 1+ = )
   t-ok ;

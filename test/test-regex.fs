@@ -1,16 +1,16 @@
-\ ===== test/test-regex.fs — gap buffer 连续快照（snap）=====
-\ regex.fs 的 libcc 部分（POSIX 正则）不在单测范围；只测纯逻辑的 snap。
-\ （regex.fs/search.fs 已在 harness 里 include，避免重复 redefined）
+\ ===== test/test-regex.fs — gap buffer contiguous snapshot (snap) =====
+\ regex.fs's libcc part (POSIX regex) is out of unit-test scope; only the pure-logic snap is tested.
+\ (regex.fs/search.fs are already included in harness.fs, to avoid duplicate redefines)
 
 : test-snap-build
   s" hello world" tb-set
-  5 g-move-gap                    \ gap 移到中间（front=5 back=6）
-  assert( snap-dirty @ 1 = )      \ g-insert 后 lix-touch 置 snap-dirty
+  5 g-move-gap                    \ gap moved to the middle (front=5 back=6)
+  assert( snap-dirty @ 1 = )      \ lix-touch sets snap-dirty after g-insert
   snap-build
   assert( snap-len @ 11 = )
   assert( snap @ 11 s" hello world" compare 0= )
   assert( snap-dirty @ 0= )
-  \ 再 build（未编辑）应直接退出，内容不变
+  \ build again (not edited) should exit immediately, contents unchanged
   snap-build
   assert( snap @ 11 s" hello world" compare 0= )
   t-ok ;

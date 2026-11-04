@@ -1,6 +1,6 @@
-\ ===== test/run-all.fs — 运行全部单元测试 =====
-\ 用法：gforth-fast test/run-all.fs
-\ include 相对本文件目录（Gforth 语义），所以任意 cwd 都能跑。
+\ ===== test/run-all.fs — run all unit tests =====
+\ usage: gforth-fast test/run-all.fs
+\ includes resolve relative to this file's directory (Gforth semantics), so any cwd works.
 
 include harness.fs
 include test-state.fs
@@ -10,7 +10,7 @@ include test-undo.fs
 include test-regex.fs
 include test-search.fs
 
-\ --- 执行全部测试（断言失败会 abort 并打印位置）---
+\ --- run all tests (a failed assert aborts and prints the location) ---
 test-state-buffer-fields
 test-state-window-fields
 test-gap-init

@@ -760,8 +760,8 @@ variable rs-c 0 rs-c !
     then
     a hlend < if  hlattr  else  0  then { eff }   \ effective style (0 outside the region)
     eff curattr <> if  eff style>fb  eff to curattr  then
-    \ in-text label (avy goto-char/goto-word): replace the candidate char with its label
-    em-label-xt @ ?dup if  a swap execute  else  0 0 0 0 0  then { lba lln lcw lcn lca }
+    \ in-text label (avy goto-char/goto-word): replace the candidate char with its label — active window only
+    em-label-xt @ win-render-active @ and ?dup if  a swap execute  else  0 0 0 0 0  then { lba lln lcw lcn lca }
     lln if
       lca curattr <> if  lca style>fb  lca to curattr  then
       lba lln fb-str
@@ -1553,7 +1553,7 @@ is ?warning
 
 
 \ ===== entry point =====
-\ -e 支持：收集 -e 代码（argv 字符串指针，进程生命周期内有效），配置加载后统一求值
+\ -e support: collect -e code (argv string pointers, valid for the process lifetime), evaluated after config loads
 16 constant max-fe-evals
 create fe-evals-a max-fe-evals cells allot
 create fe-evals-l max-fe-evals cells allot
@@ -1564,7 +1564,7 @@ variable fe-i 0 fe-i !
 variable fe-ev-sp 0 fe-ev-sp !
 variable fe-no-config 0 fe-no-config !
 
-\ 当前 next-arg 是 "-e"：取下一条参数作为 Forth 代码并收集
+\ current next-arg is "-e": take the next argument as Forth code and collect it
 : fe-arg-e ( -- )
   next-arg  2dup d0= if  2drop  s" -e needs an argument" msg-log  exit  then
   nfe-evals @ max-fe-evals < if
@@ -1573,7 +1573,7 @@ variable fe-no-config 0 fe-no-config !
     1 nfe-evals +!
   else  2drop  s" too many -e arguments" msg-log  then ;
 
-\ 处理命令行参数：-e 收集代码，-n 不加载配置，其余按文件打开（记住第一个文件）
+\ process command-line args: -e collects code, -n skips config, the rest open files (remember the first)
 : fe-args ( -- )
   0 nfe-evals !  0 fe-has-file !  0 fe-no-config !
   begin
@@ -1590,7 +1590,7 @@ variable fe-no-config 0 fe-no-config !
   2drop
   fe-has-file @ if  fe-first-gctx @ buffer-switch  then ;
 
-\ 求值一段 -e 代码：异常只报 *messages* 不崩；求值后恢复数据栈
+\ evaluate a piece of -e code: exceptions go to *messages* only (no crash); restore the data stack after
 : fe-eval ( -- )
   sp@ fe-ev-sp !
   fe-evals-a fe-i @ cells + @  fe-evals-l fe-i @ cells + @
@@ -1613,7 +1613,7 @@ variable fe-no-config 0 fe-no-config !
   s" start-warn" tmp-file delete-file throw
   s" rt-warn" tmp-file w/o create-file throw rt-warn-fid !
   rt-warn-fid @ TO debug-fid
-  fe-args                                \ -e 收集代码 + 打开文件（记住第一个文件）
+  fe-args                                \ -e collects code + opens files (remember the first)
   6 s" C.UTF-8" setlocale drop     \ force the UTF-8 locale so wcwidth returns 2 for CJK
   6 s" en_US.UTF-8" setlocale drop
   key? drop           \ warm-up: let Gforth's ekey save the "normal" terminal state first (otherwise it would restore raw on exit)
