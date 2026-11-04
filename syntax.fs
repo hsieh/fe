@@ -62,6 +62,7 @@ variable lstate-cap 0 lstate-cap !
   \ only the first allocation needs clearing (lstate[0] must be 0)
   lstate @ if
     lstate @ newcap resize throw lstate !
+    lstate @ lstate-cap @ +  newcap lstate-cap @ -  erase   \ clear the newly added tail (resize does not zero it)
   else
     newcap allocate throw lstate !
     lstate @ newcap erase
@@ -338,6 +339,19 @@ variable trg-mlen 0 trg-mlen !
   loop
   false ;
 
+\ build-line with a throwaway hlmap: ensure-state only needs the resulting sen (line state),
+\ it must NOT touch the hlc cache slot that hlmap currently points at (that would free/realloc the
+\ slot's buffer under a cached pointer and later crash resize).
+variable esv-hm  0 esv-hm !
+variable esv-cap 0 esv-cap !
+variable esv-len 0 esv-len !
+: es-build-line ( ln -- )
+  hlmap @ esv-hm !  hlmap-cap @ esv-cap !  hlmaplen @ esv-len !
+  0 hlmap !  0 hlmap-cap !
+  build-line
+  hlmap @ free throw
+  esv-hm @ hlmap !  esv-cap @ hlmap-cap !  esv-len @ hlmaplen ! ;
+
 : ensure-state { ln -- }            \ ensure lstate[ln] is known (compute forward from the frontier)
   ln 1+ lstate-ensure
   begin lst-max @ ln < while
@@ -351,10 +365,10 @@ variable trg-mlen 0 trg-mlen !
       line-has-csstart? 0= if
         0 sen !
       else
-        es-k @ build-line
+        es-k @ es-build-line
       then
     else
-      es-k @ build-line
+      es-k @ es-build-line
     then
     sen @  es-k @ 1+ lstate @ + c!
     lst-max @ 1+ lst-max !

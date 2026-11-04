@@ -1005,8 +1005,7 @@ variable wslf 0 wslf !
     27 fb-c 91 fb-c 74 fb-c             \ \e[J
   then
   nrows @ 1+ nrows !
-  \ === full repaint: invalidate the shadow so every row is re-emitted (Ctrl-l must fix a dirty screen) ===
-  0 pnrows !  0 panel-dirty !
+  \ === incremental output (write only changed rows) ===
   cursor-hide
   cur-insert? if 6 else 2 then cursor-shape   \ command = block, insert = bar
   emit-changes
@@ -1029,6 +1028,10 @@ variable wslf 0 wslf !
   then
   cursor-show ;
 
+\ force a full repaint on the next redraw (Ctrl-l: the incremental diff would not fix a dirty screen)
+: redraw-full ( -- )
+  0 pnrows !  0 panel-dirty !
+  redraw ;
 
 \ ===== multi-buffer management =====
 variable buffers-first  0 buffers-first !

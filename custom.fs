@@ -3985,7 +3985,7 @@ variable em-off 0 em-off !
   key-ctrl-b ['] fe-page-up   bind-base   \ C-b page up
   K-DELETE ['] fe-delete     bind-base
   key-ctrl-s ['] save-current bind-base
-  key-ctrl-l ['] redraw       bind-base
+  key-ctrl-l ['] redraw-full   bind-base
   key-ctrl-x ['] reload-extension bind-base
   key-ctrl-c ['] cmd-panic        bind-base
   key-ctrl-o ['] buffer-open-name  bind-base   \ Ctrl-o open by name
