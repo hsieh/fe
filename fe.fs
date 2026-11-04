@@ -1005,7 +1005,8 @@ variable wslf 0 wslf !
     27 fb-c 91 fb-c 74 fb-c             \ \e[J
   then
   nrows @ 1+ nrows !
-  \ === incremental output (write only changed rows) ===
+  \ === full repaint: invalidate the shadow so every row is re-emitted (Ctrl-l must fix a dirty screen) ===
+  0 pnrows !  0 panel-dirty !
   cursor-hide
   cur-insert? if 6 else 2 then cursor-shape   \ command = block, insert = bar
   emit-changes
