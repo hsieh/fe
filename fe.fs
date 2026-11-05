@@ -187,6 +187,22 @@ defer file-loaded-xt                        \ ( -- ) called after load-file comp
   0 modified !
   file-loaded-xt ;
 
+\ fsync(2) binding: durability for the atomic save (gforth has no built-in fsync)
+require libcc.fs
+c-library fsync-lib
+  \c #include <unistd.h>
+  c-function c-fsync  fsync  n -- n    \ fsync(int fd) -> 0 / -1
+  c-function c-fileno fileno a -- n    \ fileno(FILE*) -> fd
+end-c-library
+
+\ grow-once buffer for the temporary file name (original name + ".tmp", same directory)
+variable save-tmp 0 save-tmp !
+variable save-tmp-cap 0 save-tmp-cap !
+: save-tmp-ensure { n }
+  n save-tmp-cap @ u<= if exit then
+  save-tmp @ if save-tmp @ free throw then
+  n 2* 256 max dup save-tmp-cap ! allocate throw save-tmp ! ;
+
 : save-file { addr len }
   g-contents { buf blen }
   eol-crlf @ if
@@ -194,10 +210,18 @@ defer file-loaded-xt                        \ ( -- ) called after load-file comp
     buf free throw
     buf2 to buf   blen2 to blen
   then
-  addr len w/o create-file throw { fh }
+  \ atomic save: write a same-directory temp file "<name>.tmp", then rename it over the original
+  len 4 + save-tmp-ensure
+  addr save-tmp len move
+  s" .tmp" save-tmp len + swap move
+  len 4 + { tlen }
+  save-tmp tlen w/o create-file throw { fh }
   buf blen fh write-file throw
+  fh flush-file throw                     \ stdio buffer -> OS page cache
+  fh c-fileno c-fsync 0< if  -38 throw  then   \ -> disk (durability)
   fh close-file throw
   buf free throw
+  save-tmp tlen  addr len  rename-file throw
   urp @ saved-urp !
   0 modified ! ;
 
