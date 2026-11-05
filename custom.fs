@@ -1988,7 +1988,16 @@ create leader-xts /keymap cells allot      \ the real xt per key (for the auto-p
 variable insert-mode-xt  ' insert-mode-choice insert-mode-xt !
 : cmd-enter-ins  insert-mode-xt @ execute mode-set ;
 : cmd-append     fe-right  insert-mode-xt @ execute  mode-set ;
-: cmd-open-below  fe-line-end  fe-right  fe-insert-newline  insert-mode-xt @ execute mode-set ;  \ o open a new line below
+\ visual selection state (defined early: cmd-open-below's visual o needs them before the yank/visual block)
+variable visual     0 visual !
+variable vis-anchor 0 vis-anchor !
+: cmd-open-below  \ o: visual = go to the other end of the selection (vim o); normal = open a line below
+  visual @ if
+    cursor @ vis-anchor @ swap  vis-anchor !  cursor !
+    0 pnrows !
+  else
+    fe-line-end  fe-right  fe-insert-newline  insert-mode-xt @ execute mode-set
+  then ;
 : cmd-open-above   \ O open a new line above (insert the indentation first, then the newline, to avoid ls becoming stale after a line-start insert)
   fe-line-start
   cursor @ offset->linecol drop { line }
@@ -2201,8 +2210,6 @@ variable fm-cn 0 fm-cn !
 create yank-buf 65536 allot
 variable yank-len   0 yank-len !
 variable yank-linewise 0 yank-linewise !   \ 1 = the register holds whole lines (yy/dd/V); paste treats it linewise
-variable visual     0 visual !
-variable vis-anchor 0 vis-anchor !
 variable vis-linewise 0 vis-linewise !   \ 0=charwise (v) 1=linewise (V)
 
 \ visual selection bounds: charwise = byte range [min,max); linewise = whole lines
