@@ -3629,10 +3629,12 @@ variable nfmt 0 nfmt !
 
 : fmt-register { ext eu cmd cu -- }
   nfmt @ max-fmt >= if exit then
-  ext fmt-exts nfmt @ 16 * + eu move
-  eu fmt-elens nfmt @ cells + !
-  cmd fmt-cmds nfmt @ 64 * + cu move
-  cu fmt-clens nfmt @ cells + !
+  eu 16 min { n }
+  ext fmt-exts nfmt @ 16 * + n move
+  n fmt-elens nfmt @ cells + !
+  cu 64 min { m }
+  cmd fmt-cmds nfmt @ 64 * + m move
+  m fmt-clens nfmt @ cells + !
   1 nfmt +! ;
 
 : fmt-of { a u -- ca cu }
@@ -3659,9 +3661,9 @@ s" cc"   s" clang-format"          fmt-register
 s" cxx"  s" clang-format"          fmt-register
 s" java" s" clang-format"          fmt-register
 
-create fmt-tmp 256 allot
+create fmt-tmp path-max @ 8 + allot   \ "/tmp/fe-fmt." + ext (ext ≤ path-max)
 variable fmt-tlen 0 fmt-tlen !
-create fmt-cmd 256 allot
+create fmt-cmd path-max @ 80 + allot  \ cmd (≤ 64) + " " + fmt-tmp
 variable fmt-clen 0 fmt-clen !
 
 \ format the current buffer (= key)
@@ -3675,7 +3677,8 @@ variable fmt-clen 0 fmt-clen !
   s" /tmp/fe-fmt" fmt-tmp swap move  11 fmt-tlen !
   eu 0> if
     46 fmt-tmp fmt-tlen @ + c!  1 fmt-tlen +!
-    ea fmt-tmp fmt-tlen @ + eu move  eu fmt-tlen +!
+    eu  path-max @ 8 +  fmt-tlen @ -  min  { n }   \ clamp ext to the remaining capacity
+    ea fmt-tmp fmt-tlen @ + n move  n fmt-tlen +!
   then
   \ save the current buffer to the temp file (with EOL handling)
   fmt-tmp fmt-tlen @ save-file
