@@ -637,6 +637,7 @@ variable pc-i 0 pc-i !
 variable pc-cpi 0 pc-cpi !
 variable pm-a 0 pm-a !
 variable pm-u 0 pm-u !
+variable pm-n 0 pm-n !
 variable fi 0 fi !
 variable fs 0 fs !
 variable fel 0 fel !
@@ -657,11 +658,11 @@ variable flist-len 0 flist-len !
     newcap allocate throw flist !
   then
   newcap flist-cap ! ;
-create cur-dir 512 allot
+create cur-dir path-max @ 256 + allot
 variable cur-dir-len 0 cur-dir-len !
-create saved-dir 512 allot
+create saved-dir path-max @ 256 + allot
 variable saved-dir-len 0 saved-dir-len !
-create bpath 512 allot
+create bpath path-max @ 256 + allot
 variable bpath-len 0 bpath-len !
 
 : flist-add { a u }
@@ -669,7 +670,7 @@ variable bpath-len 0 bpath-len !
   a flist @ flist-len @ + u move  u flist-len +!
   10 flist @ flist-len @ + c!  1 flist-len +! ;
 
-\ bpath = cur-dir + "/" + name (= name when cur-dir is empty)
+\ bpath = cur-dir + "/" + name (= name when cur-dir is empty); name is clamped to the remaining capacity
 : bpath-join ( a u -- )
   pm-u !  pm-a !
   0 bpath-len !
@@ -677,7 +678,8 @@ variable bpath-len 0 bpath-len !
     cur-dir bpath cur-dir-len @ move  cur-dir-len @ bpath-len !
     47 bpath bpath-len @ + c!  1 bpath-len +!
   then
-  pm-a @ bpath bpath-len @ + pm-u @ move  pm-u @ bpath-len +! ;
+  pm-u @  path-max @ 256 +  bpath-len @ -  min  pm-n !
+  pm-a @ bpath bpath-len @ + pm-n @ move  pm-n @ bpath-len +! ;
 
 \ whether the entry is "." or ".."
 : dot-entry? ( a u -- f )
@@ -4283,7 +4285,7 @@ init-keymaps
 create layer-buf   max-layers 256 * allot
 create layer-lens  max-layers cells allot
 variable nlayers 0 nlayers !
-create cfgpath 256 allot
+create cfgpath path-max @ 8 + allot
 variable cfgpath-len 0 cfgpath-len !
 
 \ append a layer (addr len; truncated at >255)
@@ -4294,12 +4296,13 @@ variable cfgpath-len 0 cfgpath-len !
   n  layer-lens nlayers @ cells + !
   1 nlayers +! ;
 
-\ build $HOME/.fe; cfgpath-len=0 when HOME is unset
+\ build $HOME/.fe; cfgpath-len=0 when HOME is unset (HOME clamped to path-max)
 : cfg-build
   0 cfgpath-len !
   s" HOME" getenv { a u }
   u 0= if exit then
-  a cfgpath u move  u cfgpath-len !
+  u path-max @ min { n }
+  a cfgpath n move  n cfgpath-len !
   s" /.fe" { sa sl }
   sa cfgpath cfgpath-len @ + sl move
   sl cfgpath-len +! ;
@@ -4313,10 +4316,11 @@ create cwdbuf 512 allot
   cfgpath-len @ 0> if  cfgpath cfgpath-len @ add-layer  then
   cwdbuf 511 get-dir { ca clen }
   clen 0> if
-    ca cfgpath clen move
+    clen path-max @ min { n }
+    ca cfgpath n move
     s" /.fe.fs" { sa sl }
-    sa cfgpath clen + sl move
-    cfgpath clen sl + add-layer
+    sa cfgpath n + sl move
+    cfgpath n sl + add-layer
   then ;
 
 \ load a layer: skip if the file does not exist; catch and report errors (without breaking other layers)
