@@ -58,7 +58,7 @@ create prefix-key-modes  /keymap cells allot
     then
     1 rp-i +!
   repeat
-  nprefix @ max-prefix >= if 0 exit then
+  nprefix @ max-prefix >= if  #bell emit  0 exit  then
   nprefix @ { i }
   rp-na @ prefix-names i 16 * + rp-nl @ move
   rp-nl @ prefix-nlens i cells + !
@@ -2254,9 +2254,11 @@ variable avy-filtering 0 avy-filtering !   \ 1=avy filtering phase
 \ status label for command mode: show VISUAL / VISUAL LINE while a selection is active
 : mst-cmd  visual @ if  vis-linewise @ if s" VISUAL LINE" else s" VISUAL" then  else  s" NORMAL" then ;
 
-\ copy the bytes of [lo,hi) into the register
+\ copy the bytes of [lo,hi) into the register (truncated at 64KB, with a notice)
 : yank-range { lo hi -- }
-  hi lo -  0 max  65536 min  yank-len !
+  hi lo -  0 max { n }
+  n 65536 > if  s" yank truncated to 64KB" msg!  then
+  n 65536 min  yank-len !
   yank-len @ 0 ?do  lo i + g-char-at  yank-buf i +  c!  loop ;
 
 \ a linewise register must end with a newline (the last line may lack a trailing \n);

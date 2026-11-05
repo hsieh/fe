@@ -1280,7 +1280,7 @@ variable wt-i   variable wt-f   variable wt-x
       unloop exit
     then
   loop
-  nwatch @ max-watch >= if exit then
+  nwatch @ max-watch >= if  #bell emit  exit  then
   wt-f @ wt-fds nwatch @ cells + !
   wt-x @ wt-xts nwatch @ cells + !
   1 nwatch +! ;
@@ -1424,7 +1424,7 @@ defer load-layers-xt   ' noop is load-layers-xt
 
 \ split the current leaf: wctx becomes left/top, the new leaf becomes right/bottom and gains focus
 : win-split { kind -- }
-  win-count max-windows >= if exit then
+  win-count max-windows >= if  #bell emit  exit  then
   kind WK-HSPLIT = if
     win-rows @ 4 < if exit then      \ at least split into 2+2 (including the statusline, no divider row)
   else
