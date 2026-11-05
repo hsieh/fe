@@ -37,6 +37,18 @@ You can read the whole editor end to end — and change it while it runs.
 
 ---
 
+## Project history
+
+The core editor was originally written with only the most basic editing
+capabilities, and then went years without updates. In October 2026 it was
+refactored with AI assistance (the pi coding agent + DeepSeek): upgraded to
+Gforth 0.7.9 and later to Gforth 1.0.0, and extended with relatively heavyweight
+integrations such as the LSP client.
+
+The project does not exclude AI assistance, but it rejects fully AI-generated
+code: the code should stay human-readable (even though Forth readability is not
+always great), and a human must remain in deep control of it.
+
 ## Installation
 
 ### 1. Install Gforth
