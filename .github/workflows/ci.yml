@@ -18,7 +18,7 @@ jobs:
 
       - name: Ensure C compiler (libcc needs one)
         run: |
-          command -v gcc || (apt-get update && apt-get install -y build-essential)
+          command -v gcc || apk add --no-cache build-base
 
       - name: Smoke test (startup without config)
         run: ./fe -n -e 'bye'
