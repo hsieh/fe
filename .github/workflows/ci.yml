@@ -16,9 +16,9 @@ jobs:
       - name: Check Gforth version
         run: gforth --version
 
-      - name: Ensure C compiler (libcc needs one)
+      - name: Ensure build tools (libcc needs gcc + libtool)
         run: |
-          command -v gcc || apk add --no-cache build-base
+          apk add --no-cache build-base libtool libltdl
 
       - name: Smoke test (startup without config)
         run: ./fe -n -e 'bye'
