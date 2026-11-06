@@ -24,7 +24,6 @@ variable snap-len 0 snap-len !
 
 require libcc.fs
 c-library regex-c
-  \c #define _GNU_SOURCE
   \c #include <regex.h>
   \c #include <stdlib.h>
   \c #include <string.h>
@@ -95,14 +94,11 @@ c-library regex-c
   \c   if (sigsetjmp(re_env, 1) != 0) { timeout_end(&old_sa, &old_tv); re_broken = 1; return -2; }
   \c   long long result = -1;
   \c   if (anchor_in_pat) {
-  \c     /* whole buffer + REG_STARTEND: ^/$ = real line start/end.
-  \c        REG_STARTEND treats the substring start (pos) as the ^ anchor: when the pattern contains ^, if the match lands at pos and pos is not a line start,
-  \c        skip that false match and search again from pos+1. */
+  \c     /* whole buffer: ^/$ = real line start/end (REG_NEWLINE). The text has a NUL at len, so a plain regexec is bounded like REG_STARTEND. */
   \c     int p = pos;
   \c     while (p <= len) {
-  \c       pm[0].rm_so = p; pm[0].rm_eo = len;
-  \c       if (regexec(re, text, 1, pm, REG_STARTEND) != 0) break;
-  \c       long long s = pm[0].rm_so;
+  \c       if (regexec(re, text+p, 1, pm, 0) != 0) break;
+  \c       long long s = p + pm[0].rm_so;
   \c       if (caret_in_pat && s == p && p > 0 && text[p-1] != '\n') { p = s + 1; continue; }
   \c       result = s;
   \c       break;
@@ -126,9 +122,8 @@ c-library regex-c
   \c     /* last match at <= pos: scan forward from 0 and keep the latest (^/$ = line anchors) */
   \c     int p = 0;
   \c     while (p <= pos) {
-  \c       pm[0].rm_so = p; pm[0].rm_eo = len;
-  \c       if (regexec(re, text, 1, pm, REG_STARTEND) != 0) break;
-  \c       long long s = pm[0].rm_so;
+  \c       if (regexec(re, text+p, 1, pm, 0) != 0) break;
+  \c       long long s = p + pm[0].rm_so;
   \c       if (caret_in_pat && s == p && p > 0 && text[p-1] != '\n') { p = s + 1; continue; }
   \c       if (s > pos) break;
   \c       result = s;
@@ -157,12 +152,10 @@ c-library regex-c
   \c   if (sigsetjmp(re_env, 1) != 0) { timeout_end(&old_sa, &old_tv); re_broken = 1; return 0; }
   \c   long long result = 0;
   \c   if (anchor_in_pat) {
-  \c     /* whole buffer + REG_STARTEND: preserve ^/$ = real line start/end.
-  \c        when the pattern contains ^: a match landing at pos is valid only if pos is a real line start, otherwise it is a false match at a substring start. */
-  \c     pm[0].rm_so = pos; pm[0].rm_eo = len;
-  \c     if (regexec(re_anchor, text, 1, pm, REG_STARTEND) == 0 && pm[0].rm_so == pos
+  \c     /* whole buffer: preserve ^/$ = real line start/end (REG_NEWLINE); bounded by the NUL at len */
+  \c     if (regexec(re_anchor, text+pos, 1, pm, 0) == 0 && pm[0].rm_so == 0
   \c         && (!caret_in_pat || re_line_start(text, pos)))
-  \c       result = pm[0].rm_eo;
+  \c       result = pos + pm[0].rm_eo;
   \c   } else if (regexec(re_anchor, text+pos, 1, pm, 0) == 0) {
   \c     result = pos + pm[0].rm_eo;
   \c   }
@@ -186,13 +179,17 @@ c-library regex-c
   \c long long re_ptr_match(void *rp, char *text, int len, int pos) {
   \c   regex_t *r = (regex_t*)rp;
   \c   if (!r || pos >= len) return 0;
+  \c   int n = len - pos;
+  \c   if (n < 0 || n > 4095) return 0;
+  \c   char line[4096];            /* copy the line + NUL: bound the match to the current line (musl has no REG_STARTEND) */
+  \c   memcpy(line, text + pos, n);
+  \c   line[n] = 0;
   \c   regmatch_t pm[1];
-  \c   pm[0].rm_so = 0; pm[0].rm_eo = len - pos;   /* limit the range to the current line to prevent cross-line matching */
   \c   struct sigaction old_sa; struct itimerval old_tv;
   \c   timeout_start(&old_sa, &old_tv);
   \c   if (sigsetjmp(re_env, 1) != 0) { timeout_end(&old_sa, &old_tv); return 0; }
   \c   long long result = 0;
-  \c   if (regexec(r, text+pos, 1, pm, REG_STARTEND) == 0) result = pm[0].rm_eo;
+  \c   if (regexec(r, line, 1, pm, 0) == 0) result = pm[0].rm_eo;
   \c   timeout_end(&old_sa, &old_tv);
   \c   return result;
   \c }
