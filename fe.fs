@@ -190,6 +190,8 @@ defer file-loaded-xt                        \ ( -- ) called after load-file comp
 \ fsync(2) binding: durability for the atomic save (gforth has no built-in fsync)
 require libcc.fs
 c-library fsync-lib
+  \c #define _POSIX_C_SOURCE 200809L
+  \c #include <stdio.h>
   \c #include <unistd.h>
   c-function c-fsync  fsync  n -- n    \ fsync(int fd) -> 0 / -1
   c-function c-fileno fileno a -- n    \ fileno(FILE*) -> fd
