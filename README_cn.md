@@ -6,6 +6,8 @@
 
 # fe — 用 Forth 驱动、可现场编程的终端编辑器
 
+[![CI](https://github.com/hsieh/fe/actions/workflows/ci.yml/badge.svg)](https://github.com/hsieh/fe/actions/workflows/ci.yml)
+
 `fe` 是一个跑在终端里、用 **Forth（Gforth）** 构建并可编程的编辑器。编辑器和 Forth 解释器在**同一进程、共享同一个词典**——你可以直接访问编辑器的内部词和变量，现场定义新命令。
 
 与此同时，它提供了熟悉且完整的日常编辑体验：**vi 风格模式编辑**、模糊匹配筛选面板、异步 live grep、LSP 语言服务、多窗口分屏、撤销重做。

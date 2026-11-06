@@ -6,6 +6,8 @@ English | [简体中文](README_cn.md)
 
 # fe — A Forth-powered, programmable terminal editor
 
+[![CI](https://github.com/hsieh/fe/actions/workflows/ci.yml/badge.svg)](https://github.com/hsieh/fe/actions/workflows/ci.yml)
+
 `fe` is a terminal text editor built in and programmable with **Forth (Gforth)**. The editor and the Forth interpreter run in the **same process and share the same dictionary** — so you can reach into the editor's internal words and variables, and define new commands live.
 
 It pairs that with a familiar, complete editing experience: **vi-style modal editing**, fuzzy-matching pickers, async live grep, an LSP client, multi-window splits, and undo/redo.
