@@ -13,11 +13,11 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libtool
+          sudo apt-get install -y build-essential libtool libltdl-dev libffi-dev m4
 
       - name: Build Gforth 1.0
         run: |
-          wget -q https://net2o.de/gforth-dist/Snapshots/1.0.0/gforth-1.0.0.tar.xz
+          wget https://net2o.de/gforth-dist/Snapshots/1.0.0/gforth-1.0.0.tar.xz
           tar xf gforth-1.0.0.tar.xz
           cd gforth-1.0.0
           ./configure --prefix="$HOME/gforth"
