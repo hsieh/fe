@@ -7,23 +7,16 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container: forthy42/gforth:latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libtool libltdl-dev libffi-dev m4
+      - name: Check Gforth version
+        run: gforth --version
 
-      - name: Build Gforth 1.0
+      - name: Ensure C compiler (libcc needs one)
         run: |
-          wget https://net2o.de/gforth-dist/Snapshots/1.0.0/gforth-1.0.0.tar.xz
-          tar xf gforth-1.0.0.tar.xz
-          cd gforth-1.0.0
-          ./configure --prefix="$HOME/gforth"
-          make -j2
-          make install
-          echo "$HOME/gforth/bin" >> "$GITHUB_PATH"
+          command -v gcc || (apt-get update && apt-get install -y build-essential)
 
       - name: Smoke test (startup without config)
         run: ./fe -n -e 'bye'
