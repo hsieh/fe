@@ -24,6 +24,7 @@ variable snap-len 0 snap-len !
 
 require libcc.fs
 c-library regex-c
+  \c #define _GNU_SOURCE
   \c #include <regex.h>
   \c #include <stdlib.h>
   \c #include <string.h>
