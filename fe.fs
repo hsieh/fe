@@ -203,6 +203,17 @@ variable save-tmp-cap 0 save-tmp-cap !
   save-tmp @ if save-tmp @ free throw then
   n 2* 256 max dup save-tmp-cap ! allocate throw save-tmp ! ;
 
+\ grow-once buffer for the backup file name (original name + "~")
+variable save-bak 0 save-bak !
+variable save-bak-cap 0 save-bak-cap !
+: save-bak-ensure { n }
+  n save-bak-cap @ u<= if exit then
+  save-bak @ if save-bak @ free throw then
+  n 2* 256 max dup save-bak-cap ! allocate throw save-bak ! ;
+
+\ vim-style backup: when set, keep the previous contents as <name>~ before overwriting
+variable backup  0 backup !
+
 : save-file { addr len }
   g-contents { buf blen }
   eol-crlf @ if
@@ -221,6 +232,15 @@ variable save-tmp-cap 0 save-tmp-cap !
   fh c-fileno c-fsync 0< if  -38 throw  then   \ -> disk (durability)
   fh close-file throw
   buf free throw
+  \ backup: rename the current original to <name>~ before the atomic replace
+  backup @ if
+    addr len file-status nip 0= if       \ original exists
+      len 1 + save-bak-ensure
+      addr save-bak len move
+      126 save-bak len + c!              \ "~"
+      addr len  save-bak len 1 +  rename-file throw
+    then
+  then
   save-tmp tlen  addr len  rename-file throw
   urp @ saved-urp !
   0 modified ! ;

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libtool
+
+      - name: Build Gforth 1.0
+        run: |
+          wget -q https://net2o.de/gforth-dist/Snapshots/1.0.0/gforth-1.0.0.tar.xz
+          tar xf gforth-1.0.0.tar.xz
+          cd gforth-1.0.0
+          ./configure --prefix="$HOME/gforth"
+          make -j2
+          make install
+          echo "$HOME/gforth/bin" >> "$GITHUB_PATH"
+
+      - name: Smoke test (startup without config)
+        run: ./fe -n -e 'bye'
+
+      - name: Unit tests (pure logic)
+        run: gforth-fast test/run-all.fs
+
+      - name: Full-stack tests (stack effects + bounds)
+        run: sh test/run-fe-stack.sh
