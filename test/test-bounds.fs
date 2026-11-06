@@ -1,6 +1,6 @@
 \ ===== test/test-bounds.fs — bounded path/command concatenation regression tests =====
 \ must be included on top of the full fe definitions (fe-strip.fs), like test-fe-stack.fs.
-\ run: see run-fe-stack.sh (executed from the project root).
+\ run: see run-fe-stack.fs (executed from the project root).
 
 require assert.fs
 require unix/libc.fs   \ setenv (for the long-HOME cfg-build test)

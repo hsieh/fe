@@ -27,4 +27,4 @@ jobs:
         run: gforth-fast test/run-all.fs
 
       - name: Full-stack tests (stack effects + bounds)
-        run: sh test/run-fe-stack.sh
+        run: gforth-fast test/run-fe-stack.fs
