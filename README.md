@@ -122,6 +122,8 @@ At startup (and on `Ctrl-x` reload), configuration layers are loaded by priority
 char Z ' cmd-qrep bind-command         \ rebind query-replace to Z (config is interpreted: use char/' instead of [char]/['])
 ```
 
+See [`fe.example`](fe.example) for a fuller sample (git blame + function navigation on the Space leader).
+
 Commonly configurable variables:
 
 | Variable | Default | Meaning |

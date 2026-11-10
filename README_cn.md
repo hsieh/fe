@@ -118,6 +118,8 @@ ln -s "$PWD/fe" ~/bin/fe
 char Z ' cmd-qrep bind-command         \ 把「查询替换」改绑到 Z（配置是解释执行：用 char/' 而非 [char]/[']）
 ```
 
+更完整的示例见 [`fe.example`](fe.example)（Space leader 上的 git blame + 函数导航）。
+
 常用可配置变量：
 
 | 变量 | 默认 | 说明 |

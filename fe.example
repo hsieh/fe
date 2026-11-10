@@ -1,0 +1,139 @@
+\ ===== fe.example — a sample ~/.fe config =====
+\ copy to ~/.fe (or ./.fe.fs for a project), then press Ctrl-x in fe to reload.
+\ The config is interpreted Forth: use char / ' for keys and words (not [char] / [']).
+
+\ --- basics ---
+4 tab-width !                 \ tab display width
+0 linenr-default !            \ line numbers off by default (0=off 1=absolute 2=relative 3=hybrid)
+1 backup !                    \ keep the previous version as <name>~ on save
+
+\ --- leader (Space) ---
+bl set-leader-key             \ Space becomes the leader; the bind-leader keys below use it
+
+\ ==== leader b: git blame for the cursor line ====
+
+create gb-cmd 1024 allot
+variable gb-len 0 gb-len !
+
+variable gb-a 0 gb-a !
+variable gb-u 0 gb-u !
+: gb-put ( addr len -- )      \ append a string to the command
+  gb-u !  gb-a !
+  gb-a @  gb-cmd gb-len @ +  gb-u @  move
+  gb-u @ gb-len +! ;
+
+variable gb-c 0 gb-c !
+: gb-putc ( c -- )            \ append one byte
+  gb-c !
+  gb-c @ gb-cmd gb-len @ + c!
+  1 gb-len +! ;
+
+\ decimal digits, arithmetic only (<# #s #> would clobber the shared hold area)
+create gb-nbuf 16 allot
+variable gb-n 0 gb-n !
+variable gb-i 0 gb-i !
+: gb-num ( n -- )             \ append an unsigned decimal
+  gb-n !
+  0 gb-i !
+  begin
+    gb-n @ 10 mod 48 +  gb-nbuf gb-i @ + c!
+    1 gb-i +!
+    gb-n @ 10 / gb-n !
+    gb-n @ 0= until
+  begin gb-i @ 0> while
+    -1 gb-i +!
+    gb-nbuf gb-i @ + c@ gb-putc
+  repeat ;
+
+variable gb-fid 0 gb-fid !
+variable gb-oa 0 gb-oa !
+variable gb-ou 0 gb-ou !
+: blame-line ( -- )           \ run git blame -L n,n -- '<file>', show the result on the status line
+  gctx @ buf-namelen@ 0= if s" no file" msg! exit then
+  0 gb-len !
+  s" git blame -L " gb-put
+  cursor @ offset->linecol drop 1+ gb-num
+  44 gb-putc
+  cursor @ offset->linecol drop 1+ gb-num
+  s"  -- '" gb-put
+  gctx @ buf-name@ gctx @ buf-namelen@ gb-put
+  39 gb-putc
+  gb-cmd gb-len @ r/o open-pipe throw gb-fid !
+  gb-fid @ slurp-fid gb-ou ! gb-oa !
+  gb-fid @ close-pipe throw drop
+  gb-ou @ 0> if
+    gb-oa @ gb-ou @ + 1- c@ 10 = if
+      gb-oa @ gb-ou @ 1- msg!
+    else
+      gb-oa @ gb-ou @ msg!
+    then
+  else
+    s" no blame" msg!
+  then
+  gb-oa @ free throw ;
+
+char b ' blame-line bind-leader
+
+\ ==== leader j / k: jump between function definitions (regex, no LSP) ====
+\ default regex targets Go (func / type lines); change fn-set-re for other languages.
+
+create fn-re 128 allot
+variable fn-re-len 0 fn-re-len !
+: fn-set-re { a u -- }        \ set the "definition" regex (overridable)
+  u 128 min fn-re-len !
+  a fn-re fn-re-len @ move ;
+s" ^[ \t]*(func|type)[ \t]" fn-set-re
+
+\ save/restore the / search pattern and switches so fn-nav does not disturb the user's search
+create fn-pat 256 allot
+variable fn-patlen 0 fn-patlen !
+variable fn-regex 0 fn-regex !
+variable fn-wb 0 fn-wb !
+
+variable fn-dir 0 fn-dir !
+variable fn-a 0 fn-a !
+variable fn-u 0 fn-u !
+
+: fn-pat-set ( a u -- )       \ install a u as the search pattern (compiles once)
+  fn-u ! fn-a !
+  pat-clear
+  fn-a @ pat fn-u @ move
+  fn-u @ patlen !
+  regex-recompile ;
+
+: fn-save ( -- )
+  regex-search @ fn-regex !
+  word-boundary @ fn-wb !
+  pat fn-pat patlen @ move
+  patlen @ fn-patlen ! ;
+
+: fn-restore ( -- )
+  fn-pat pat fn-patlen @ move
+  fn-patlen @ patlen !
+  fn-regex @ regex-search !
+  fn-wb @ word-boundary !
+  regex-recompile ;
+
+\ dir: 1 = next, -1 = previous; wraps around; "previous" skips the current definition
+: fn-nav ( dir -- )
+  fn-dir !
+  fn-save
+  1 regex-search !             \ this jump uses regex
+  fn-re fn-re-len @ fn-pat-set
+  fn-dir @ 1 = if
+    cursor @ 1+ search-fwd  dup 0>= if cursor ! else drop
+      0 search-fwd  dup 0>= if cursor ! s" wrapped" msg! else drop s" no more function" msg! then
+    then
+  else
+    cursor @ offset->linecol drop line-start 1- search-back
+    dup 0>= if cursor ! else drop
+      g-size search-back  dup 0>= if cursor ! s" wrapped" msg! else drop s" no previous function" msg! then
+    then
+  then
+  fn-restore ;
+
+: fn-next  1 fn-nav ;
+: fn-prev  -1 fn-nav ;
+
+char j ' fn-next bind-leader
+char k ' fn-prev bind-leader
