@@ -3,7 +3,6 @@
 \      fe.fs add-watcher/remove-watcher, and custom.fs list-panel / fe-locate-jump / fe-resolve-file.
 
 require libcc.fs
-also c-lib
 c-library grepbind
   \c #include <unistd.h>
   \c #include <stdlib.h>

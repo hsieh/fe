@@ -2,7 +2,6 @@
 \ the vendored cJSON.c/cJSON.h live in the project directory; the fe script stores the project directory in fe-incdir,
 \ here add-incdir lets libcc's C compiler find cJSON.c.
 require libcc.fs
-also c-lib      \ add-incdir / c-flags are in the c-lib vocabulary (previous-ed away after require)
 
 c-library cjson
   \ c-library calls clear-libs and clears c-flags, so add-incdir must come after c-library and before end-c-library
