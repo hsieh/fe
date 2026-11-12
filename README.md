@@ -133,6 +133,7 @@ Commonly configurable variables:
 | `linenr-scope` | 0 | line-number scope: 0=per window 1=per buffer |
 | `regex-search` | 0 | 1=search uses POSIX regex; 0=literal substring |
 | `lp-keep-right` | 0 | 1=pickers keep the right end of over-wide entries |
+| `lp-scope-default` | 0 | refs picker search scope: 0=path:line only, 1=whole item (Ctrl-x toggles it live) |
 
 Key rebinding uses `bind-command` (command mode), `bind-insert` (insert mode), `bind-mode` (any mode).
 A configuration error in one layer is isolated (reported on the status line; it doesn't break the other layers).

@@ -129,6 +129,7 @@ char Z ' cmd-qrep bind-command         \ 把「查询替换」改绑到 Z（配�
 | `linenr-scope` | 0 | 行号模式作用域：0=每个窗口独立 1=每个 buffer 共享 |
 | `regex-search` | 0 | 1=搜索用 POSIX 正则；0=字面子串 |
 | `lp-keep-right` | 0 | 1=筛选面板超宽项保留右端 |
+| `lp-scope-default` | 0 | refs 面板搜索范围：0=只搜路径:行号，1=搜整个条目（面板内 Ctrl-x 可临时切换）|
 
 按键重绑用 `bind-command`（命令模式）、`bind-insert`（插入模式）、`bind-mode`（任意模式）。
 单层配置出错会隔离（状态栏提示错误，不拖垮其它层）。

@@ -1113,6 +1113,9 @@ create lp-symmarks-src max-lp fz-max-n * allot
   lp-symmarks  lp-symmarks-src  max-lp fz-max-n * move ;
 variable lp-item 0 lp-item !   \ flist item index (used by lp-filter iteration, aligned with the lp-cstarts index)
 variable lp-cst  0 lp-cst !    \ content-segment start of the current item
+\ search scope for the refs picker: 0 = path:line only, 1 = whole item (path + content); Ctrl-x toggles it live
+variable lp-scope  0 lp-scope !
+variable lp-scope-default  0 lp-scope-default !   \ configurable default (set to 1 in ~/.fe to search content by default)
 variable lp-pos 0 lp-pos !
 variable lp-mbase 0 lp-mbase !
 variable lp-mlen 0 lp-mlen !
@@ -1151,9 +1154,9 @@ create lp-prompt 4 allot
     begin  lp-i @ flist-len @ <  flist @ lp-i @ + c@ 10 <>  and  while  1 lp-i +!  repeat
     lp-i @ lp-s @ - lp-l !
     lp-l @ 0> if
-      \ fzy match scope: the refs picker only matches the path:line segment (lp-cstarts>0); otherwise the whole item (grep/C-o/L)
+      \ fzy match scope: the refs picker matches path:line only by default (lp-scope=0), the whole item when toggled (lp-scope=1); others always match the whole item (lp-cstarts=0)
       lp-item @ max-lp < if  lp-cstarts-src lp-item @ cells + @  else  0  then  lp-cst !
-      lp-cst @ 0> if
+      lp-cst @ 0> lp-scope @ 0= and if
         flist @ lp-s @ +  lp-cst @  pbuf pbuflen @  fuzzy-match?
       else
         flist @ lp-s @ + lp-l @  pbuf pbuflen @  fuzzy-match?
@@ -1616,6 +1619,12 @@ variable lp-emit-c 0 lp-emit-c !
   then
   lp-update ;
 
+\ toggle the refs search scope (path:line <-> whole item) and re-filter
+: lp-toggle-scope ( -- )
+  lp-scope @ 1 xor lp-scope !
+  lp-filter  lp-update  0 pnrows !
+  lp-scope @ if s" search: all" else s" search: path" then msg! ;
+
 : mst-listpanel  s" SELECT" ;
 
 \ ===== C-o input cursor + readline-style editing =====
@@ -1761,6 +1770,7 @@ variable lp-create-xt  0 lp-create-xt !
   lp-meta-clear                                            \ clear the optional metadata (collect refills it; allot is not initialized)
   lp-collect-xt @ execute
   lp-meta-snapshot                                         \ snapshot the source metadata before lp-filter sorts in-place
+  lp-scope-default @ lp-scope !                            \ reset the search scope to the configured default
   0 pbuflen !  0 pbpos !  0 lp-sel !  0 lp-top !   \ enter even with an empty list: allows typing a new path (Ctrl-o in an empty directory creates a new file)
   lp-refresh
   s" > " lp-prompt swap move  2 prompt-prefix-len !  lp-prompt prompt-prefix !
@@ -4216,7 +4226,8 @@ variable em-off 0 em-off !
   key-ctrl-l ['] lp-clear      mode-listpanel bind-mode
   K-DELETE ['] lp-close mode-listpanel bind-mode
   key-ctrl-g ['] lp-dump  mode-listpanel bind-mode   \ live grep: dump to *grep*
-  key-ctrl-j ['] lp-create mode-listpanel bind-mode ; \ open-or-create the exact typed path (file picker only)
+  key-ctrl-j ['] lp-create mode-listpanel bind-mode  \ open-or-create the exact typed path (file picker only)
+  key-ctrl-x ['] lp-toggle-scope mode-listpanel bind-mode ; \ refs: toggle search scope (path:line <-> whole item)
 
 : bind-qrep-mode ( -- ) \ query-replace mode (qemacs style, single-key confirmation)
   keymap-qrep mode-qrep m-keymap !
